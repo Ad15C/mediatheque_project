@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Médiathèque{% endblock %}</title>
+
+</head>
+<body>
+    <nav>
+    <a href="{% url 'media_list' %}">Liste des médias</a>
+    <a href="{% url 'borrowing_media' %}">Emprunter un média</a>
+
+    {% if borrows %}
+        {% for borrowing in borrows %}
+            <a href="{% url 'returning_media' borrowing.id %}">Retourner un média : {{ borrowing.media.name }}</a>
+        {% endfor %}
+    {% endif %}
+
+    <a href="{% url 'add_media' %}">Ajouter un média</a>
+    <a href="{% url 'member_list' %}">Liste des membres</a>
+
+    {% if members %}
+        {% for member in members %}
+            <a href="{% url 'update_member' member.id %}">Mettre à jour un membre : {{ member.name }}</a>
+        {% endfor %}
+    {% endif %}
+
+    <a href="{% url 'add_member' %}">Ajouter un membre</a>
+</nav>
+
+    {% block content %}
+        <h1>Bienvenue à la Médiathèque</h1>
+        {% block page_content %}
+        {% endblock %}
+    {% endblock %}
+
+</body>
+</html>
