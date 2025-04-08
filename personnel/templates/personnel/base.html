@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Médiathèque{% endblock %}</title>
+</head>
+<body>
+    <nav>
+        <!-- Partie pour les médias -->
+        <a href="{% url 'media_list' %}">Liste des médias</a>
+        <a href="{% url 'borrowing_media' %}">Emprunter un média</a>
+        <a href="{% url 'returning_media' 0 %}">Retourner un média</a>
+        <a href="{% url 'add_media' %}">Ajouter un média</a>
+<hr>
+        <!-- Partie pour les membres -->
+        <a href="{% url 'member_list' %}">Liste des membres</a>
+        <a href="{% url 'add_member' %}">Ajouter un membre</a>
+
+        <!-- Retour à la page d'accueil -->
+        <a href="{% url 'index' %}">Retour à l'accueil</a>
+    </nav>
+    <h1>Bienvenue sur le site de la Médiathèque </h1>
+    {% block content %}
+        <!-- Contenu spécifique de chaque page -->
+    {% endblock %}
+</body>
+</html>

@@ -1,38 +1,24 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Médiathèque{% endblock %}</title>
+{% extends 'personnel/base.html' %}
 
-</head>
-<body>
-    <nav>
-    <a href="{% url 'media_list' %}">Liste des médias</a>
-    <a href="{% url 'borrowing_media' %}">Emprunter un média</a>
+{% block title %}Accueil{% endblock %}
 
-    {% if borrows %}
-        {% for borrowing in borrows %}
-            <a href="{% url 'returning_media' borrowing.id %}">Retourner un média : {{ borrowing.media.name }}</a>
-        {% endfor %}
-    {% endif %}
-
-    <a href="{% url 'add_media' %}">Ajouter un média</a>
-    <a href="{% url 'member_list' %}">Liste des membres</a>
-
-    {% if members %}
-        {% for member in members %}
-            <a href="{% url 'update_member' member.id %}">Mettre à jour un membre : {{ member.name }}</a>
-        {% endfor %}
-    {% endif %}
-
-    <a href="{% url 'add_member' %}">Ajouter un membre</a>
-</nav>
-
-    {% block content %}
-        <h1>Bienvenue à la Médiathèque</h1>
-        {% block page_content %}
-        {% endblock %}
-    {% endblock %}
-
-</body>
-</html>
+{% block content %}
+   <h2> Petit mot d'accueil : </h2>
+        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce eu ligula pharetra, gravida tellus at,
+            lacinia orci. Mauris aliquet bibendum nibh, at semper dui. Interdum et malesuada fames ac ante ipsum
+            primis in faucibus. Donec quis turpis velit. Aliquam erat volutpat. Quisque ornare rhoncus quam, vel
+            vulputate lectus blandit non. Quisque nibh est, accumsan eu dignissim a, faucibus et arcu. Lorem ipsum
+            dolor sit amet, consectetur adipiscing elit. Vestibulum in gravida diam.</p>
+        <p>Vivamus sit amet lectus ipsum. Quisque sit amet vestibulum justo. Nunc sit amet neque eget tortor
+            consectetur tincidunt vitae a dui. Nullam ultrices, urna et sodales consequat, urna lectus ultrices
+            lectus, malesuada molestie arcu orci vitae tortor. In ut magna mattis urna venenatis fringilla. Duis
+            finibus in turpis et euismod. Mauris efficitur consequat placerat. Phasellus at blandit lacus. Aliquam
+            id odio neque. Morbi nec sapien eget metus bibendum malesuada sed et arcu. Integer blandit felis tortor
+            , nec tristique metus convallis sit amet. Nam eget interdum nibh, ut aliquam elit. Suspendisse
+            elementum efficitur erat, eget malesuada purus iaculis eget. Donec interdum egestas enim, sed varius
+            nibh consectetur et.</p>
+        <p>Aenean sodales purus tortor, a lobortis sapien ullamcorper faucibus. Sed condimentum pulvinar libero,
+            non interdum est dapibus id. Nulla semper sem id nisl tincidunt malesuada. Etiam semper nunc neque,
+            in feugiat nulla imperdiet vitae. Fusce vitae elementum ligula, non egestas mauris. In hac habitasse
+            platea dictumst. Nunc dapibus sapien eu tellus egestas ullamcorper.</p>
+{% endblock %}
