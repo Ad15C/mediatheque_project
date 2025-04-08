@@ -1,0 +1,12 @@
+{% extends 'personnel/base.html' %}
+
+{% block title %}Retourner un média{% endblock %}
+
+{% block content %}
+    <h2>Retourner un média à la médiathèque : </h2>
+        <p>{{ borrow.media }} emprunté par {{ borrow.borrower }}</p>
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit">Confirmer le retour</button>
+            </form>
+{% endblock %}

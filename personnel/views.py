@@ -1,37 +1,208 @@
-from django.shortcuts import render
-from .models import Borrow, Member
+from django.shortcuts import render, redirect, get_object_or_404
+from .models import Borrow, Member, Media, Livre, DVD, CD, JeuPlateau, BorrowingRule
+from .forms import MediaForm, MemberForm
+from django.contrib import messages
+from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError, ObjectDoesNotExist
+from django.contrib.auth.decorators import login_required
 
 
+
+
+
+# Page d'accueil pour afficher les différentes actions disponibles pour le personnel
 def index(request):
     borrows = Borrow.objects.all()
     members = Member.objects.all()
     return render(request, 'personnel/index.html', {'borrows': borrows, 'members': members})
 
 
+# Liste des médias
 def media_list(request):
-    return render(request, 'personnel/media_list.html')
+    livres = Livre.objects.all().order_by('name')
+    dvds = DVD.objects.all().order_by('name')
+    cds = CD.objects.all().order_by('name')
+    jeux_plateau = JeuPlateau.objects.all().order_by('name')
 
-def borrowing_media(request):
-    return render(request, 'personnel/borrowing_media.html')
+    return render(request, 'personnel/media_list.html', {
+        'livres': livres,
+        'dvds': dvds,
+        'cds': cds,
+        'jeux_plateau': jeux_plateau
+    })
 
-def returning_media(request, borrowing_id):
-    return render(request, 'personnel/returning_media.html', {'borrowing_id': borrowing_id})
 
+# Fiche détail d\'un média
+def media_detail(request, pk):
+    media = get_object_or_404(Media, pk=pk)
+    for attr in ('livre', 'dvd', 'cd'):
+        if hasattr(media, attr):
+            specific = getattr(media, attr)
+            break
+    else:
+        specific = media
+    return render(request, 'personnel/media_detail.html', {'media': specific})
+
+
+# Ajout d'un média
+@login_required
 def add_media(request):
-    return render(request, 'personnel/add_media.html')
+    if request.method == 'POST':
+        form = MediaForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('media_list')
+    else:
+        form = MediaForm()
+    return render(request, 'personnel/add_media.html', {'form': form})
 
-def media_detail(request):
-    return render(request, 'personnel/media_detail.html')
 
+# Emprunter un média
+@login_required
+def borrowing_media(request):
+    member = request.user.member
+    available_media = Media.objects.filter(available=True).exclude(media_type='jeu_plateau')
+
+
+    if request.method == 'POST':
+        media_id = request.POST.get('media_id')
+        try:
+            selected_media = Media.objects.get(id=media_id)
+        except ObjectDoesNotExist:
+            messages.error(request, "Ce média n'existe pas.")
+            return redirect('borrowing_media')
+
+        # Vérification des critères d'emprunt
+        blocked, too_many_borrows, has_delay, media_not_available = check_borrow_criteria(member, selected_media)
+
+        if not blocked and not too_many_borrows and not has_delay and not media_not_available:
+            borrow = Borrow(
+                borrower=member,
+                media=selected_media,
+                content_type=ContentType.objects.get_for_model(selected_media),
+                object_id=selected_media.id
+            )
+            try:
+                borrow.clean()  # Validation des règles d'emprunt
+                borrow.confirm_borrow()  # Confirmer l'emprunt et mettre à jour la disponibilité du média
+                borrow_success = True
+                messages.success(request,
+                                 f"L'emprunt de {selected_media.name} a été confirmé pour {member.user.username}.")
+                return render(request, 'personnel/borrowing_media.html', {
+                    'available_media': available_media,
+                    'selected_media': selected_media,
+                    'member': member,
+                    'borrow_success': borrow_success,
+                    'blocked': blocked,
+                    'too_many_borrows': too_many_borrows,
+                    'has_delay': has_delay,
+                    'media_not_available': media_not_available,
+                    'rules': BorrowingRule.objects.filter(active=True),  # Passer les règles d'emprunt actives
+                })
+            except ValidationError as e:
+                messages.error(request, str(e))  # Affiche un message d'erreur si l'emprunt échoue
+
+        else:
+            """ Afficher un message d'erreur si les critères d'emprunt ne sont pas respectés """
+            if media_not_available:
+                messages.error(request, "Le média sélectionné est déjà emprunté.")
+            elif blocked:
+                messages.error(request, "Ce membre est bloqué et ne peut pas emprunter de médias.")
+            elif too_many_borrows:
+                messages.error(request, "Ce membre a atteint la limite d'emprunts en cours.")
+            elif has_delay:
+                messages.error(request, "Ce membre a un emprunt en retard.")
+
+        return render(request, 'personnel/borrowing_media.html', {
+            'available_media': available_media,
+            'selected_media': selected_media,
+            'member': member,
+            'blocked': blocked,
+            'too_many_borrows': too_many_borrows,
+            'has_delay': has_delay,
+            'media_not_available': media_not_available,
+            'rules': BorrowingRule.objects.filter(active=True),
+        })
+
+    return render(request, 'personnel/borrowing_media.html', {
+        'available_media': available_media,
+        'member': member,
+        'rules': BorrowingRule.objects.filter(active=True),  # Passer les règles d'emprunt actives
+    })
+
+
+# Règles d'emprunt d'un média
+def borrowing_rules(request):
+    rules = BorrowingRule.objects.filter(active=True)
+    return render(request, 'personnel/borrowing_rules.html', {'rules': rules})
+
+
+def check_borrow_criteria(member, selected_media):
+    blocked = member.blocked
+    has_delay = member.got_delayed()
+    media_not_available = not selected_media.available
+    limite = BorrowingRule.get_active_limit()
+    too_many_borrows = member.currently_borrowed() >= limite
+    return blocked, too_many_borrows, has_delay, media_not_available
+
+
+
+# Retourner un emprunt
+@login_required
+def returning_media(request, borrow_id):
+    if borrow_id == 0:
+        return render(request, 'personnel/return_media_form.html')
+
+    borrow = get_object_or_404(Borrow, id=borrow_id)
+    borrow.return_media()
+
+    messages.success(request, f"Le média {borrow.media.name} a été retourné et est maintenant disponible.")
+    return redirect('borrowing_media')
+
+
+# Afficher la liste des membres
+@login_required
 def member_list(request):
-    return render(request, 'personnel/member_list.html')
+    members = Member.objects.all()
+    return render(request, 'personnel/member_list.html', {'members': members})
 
+
+# Mettre à jour un Membre existant
+@login_required
 def update_member(request, member_id):
-    return render(request, 'personnel/update_member.html', {'member_id': member_id})
 
+    """ Récupérer le membre avec l'ID """
+    member = get_object_or_404(Member, id=member_id)
+
+    """ Si la requête est POST, cela signifie que l\'utilisateur souhaite sauvegarder les modifications """
+    if request.method == 'POST':
+        form = MemberForm(request.POST, instance=member)
+        if form.is_valid():
+            form.save()
+            """  Rediriger vers la page des détails après la mise à jour"""
+            return redirect('member_detail', member_id=member.id)
+    else:
+        """ Pré-remplir le formulaire avec les données du membre"""
+        form = MemberForm(instance=member)
+
+    return render(request, 'personnel/update_member.html', {'form': form, 'member': member})
+
+
+# Ajout d'un membre
+@login_required
 def add_member(request):
-    return render(request, 'personnel/add_member.html')
+    if request.method == 'POST':
+        form = MemberForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('member_list')
+    else:
+        form = MemberForm()
+    return render(request, 'personnel/add_member.html', {'form': form})
 
 
-def member_detail(request):
-   return render(request, 'personnel/member_detail.html')
+# Fiche détaillée d'un membre
+@login_required
+def member_detail(request, member_id):
+    member = get_object_or_404(Member, id=member_id)
+    return render(request, 'personnel/member_detail.html', {'member': member})

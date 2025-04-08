@@ -5,7 +5,7 @@ from . import views
 urlpatterns = [
     path("", views.index, name="index"),
     path("liste_media", views.media_list, name="media_list"),
-    path("media/<int:media_id>", views.media_detail, name="media_detail"),
+    path('media/<int:pk>/', views.media_detail, name='media_detail'),
     path("emprunter/", views.borrowing_media, name="borrowing_media"),
     path("retour/<int:borrowing_id>", views.returning_media, name="returning_media"),
     path("ajouter_media/", views.add_media, name="add_media"),

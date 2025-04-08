@@ -1,0 +1,24 @@
+{% extends 'personnel/base.html' %}
+
+{% block title %}Mise à jour d'un membre{% endblock %}
+
+{% block content %}
+     <h2>Mettre à jour les informations du membre : {{ member.name }}</h2>
+
+        <!-- Formulaire de mise à jour d'un membre -->
+        <form method="post">
+            {% csrf_token %}
+            <p>Nom : {{ form.name }}</p>
+            <p>Email : {{ form.email }}</p>
+            <p>Date de naissance : {{ form.date_of_birth }}</p>
+            <p>Adresse : {{ form.address }}</p>
+            <p>Numéro de téléphone : {{ form.phone_number }}</p>
+            <br>
+            <button type="submit">Sauvegarder les modifications</button>
+        </form>
+
+    <br>
+    <a href="{% url 'member_detail' member.id %}">Voir les détails du membre</a>
+    <a href="{% url 'member_list' %}"> Liste des membres</a>
+
+{% endblock %}

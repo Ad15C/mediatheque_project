@@ -1,0 +1,47 @@
+{% extends 'personnel/base.html' %}
+
+{% block title %}Liste des membres{% endblock %}
+
+{% block content %}
+
+    <h2>Liste des membres de la médiathèque : </h2>
+
+        <table border="1">
+            <thead>
+                <tr>
+                    <th>Nom : </th>
+                    <th>Email : </th>
+                    <th>Date de naissance : </th>
+                    <th>Adresse : </th>
+                    <th>Téléphone : </th>
+                    <th>Actions : </th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for member in members %}
+                <tr>
+                    <td>{{ member.name }}</td>
+                    <td>{{ member.email }}</td>
+                    <td>{{ member.date_of_birth }}</td>
+                    <td>{{ member.address }}</td>
+                    <td>{{ member.phone_number }}</td>
+                    <td>
+                         {% if member.id %}
+                        <a href="{% url 'update_member' member.id %}">Mettre à jour</a>
+                    {% else %}
+                        <p>ID manquant pour ce membre.</p>
+                    {% endif %}
+
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6">Aucun membre trouvé.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+<br>
+    <a href="{% url 'add_member' %}">Ajouter un membre</a>
+    <a href="{% url 'update_member' %}">Mettre à jour un membre</a>
+{% endblock %}
