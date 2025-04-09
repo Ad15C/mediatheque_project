@@ -5,13 +5,6 @@ from .models import Member
 
 @receiver(post_save, sender=User)
 def create_member_for_user(sender, instance, created, **kwargs):
-    """Créer un Member lorsqu'un User est créé."""
     if created:
-        Member.objects.create(user=instance)
-
-@receiver(post_save, sender=User)
-def create_member_for_user(sender, instance, created, **kwargs):
-    if created:
-        # Assure-toi que l'argument '_' est passé ou que la fonction est correcte.
-        Member.objects.create(user=instance)
-
+        member = Member.objects.create(user=instance)
+        print(f"Un membre a été créé pour {instance.username} avec l'ID {member.id}")
