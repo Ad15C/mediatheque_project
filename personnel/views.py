@@ -50,11 +50,41 @@ def add_media(request):
     if request.method == 'POST':
         form = MediaForm(request.POST)
         if form.is_valid():
-            form.save()
+            media_type = form.cleaned_data['media_type']
+            # En fonction du type de média, créer l'objet correspondant
+            if media_type == 'livre':
+                Livre.objects.create(
+                    name=form.cleaned_data['name'],
+                    available=form.cleaned_data['available'],
+                    media_type=media_type,
+                    author=form.cleaned_data['author'],
+                )
+            elif media_type == 'dvd':
+                DVD.objects.create(
+                    name=form.cleaned_data['name'],
+                    available=form.cleaned_data['available'],
+                    media_type=media_type,
+                    producer=form.cleaned_data['producer'],
+                )
+            elif media_type == 'cd':
+                CD.objects.create(
+                    name=form.cleaned_data['name'],
+                    available=form.cleaned_data['available'],
+                    media_type=media_type,
+                    artist=form.cleaned_data['artist'],
+                )
+            elif media_type == 'jeu_plateau':
+                JeuPlateau.objects.create(
+                    name=form.cleaned_data['name'],
+                    creators=form.cleaned_data['creators'],
+                )
+
             return redirect('media_list')
     else:
         form = MediaForm()
+
     return render(request, 'personnel/add_media.html', {'form': form})
+
 
 
 # Emprunter un média
