@@ -145,13 +145,24 @@ def check_borrow_criteria(member, selected_media):
 @login_required
 def returning_media(request, borrow_id):
     if borrow_id == 0:
-        return render(request, 'personnel/return_media_form.html')
+        messages.error(request, "Aucun emprunt valide n’a été sélectionné.")
+        return redirect('borrowing_media')
 
     borrow = get_object_or_404(Borrow, id=borrow_id)
-    borrow.return_media()
 
-    messages.success(request, f"Le média {borrow.media.name} a été retourné et est maintenant disponible.")
-    return redirect('borrowing_media')
+    if request.method == "POST":
+        borrow.return_media()
+        messages.success(request, f"Le média {borrow.media.name} a été retourné et est maintenant disponible.")
+        return redirect('borrowing_media')
+
+    return render(request, 'personnel/returning_media.html', {'borrow': borrow})
+
+
+# Pour choisir quel emprunt retourner
+@login_required
+def choose_borrow_to_return(request):
+    borrows = Borrow.objects.filter(date_effective_return__isnull=True)
+    return render(request, 'personnel/choose_return.html', {'borrows': borrows})
 
 
 # Afficher la liste des membres
