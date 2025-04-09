@@ -51,6 +51,9 @@ class MediaForm(forms.ModelForm):
 class MemberForm(forms.ModelForm):
     class Meta:
         model = Member
-        fields = ['name', 'email','date_of_birth', 'address', 'phone_number', 'blocked']
+        fields = ['name', 'email', 'date_of_birth', 'address', 'phone_number', 'blocked']
+
+    username = forms.CharField(max_length=150, required=True)
+    password = forms.CharField(widget=forms.PasswordInput, required=True)
 
 

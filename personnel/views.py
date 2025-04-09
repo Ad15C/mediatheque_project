@@ -224,15 +224,27 @@ def update_member(request, member_id):
 
 
 # Ajout d'un membre
+# Ajout d'un membre
 @login_required
 def add_member(request):
     if request.method == 'POST':
         form = MemberForm(request.POST)
         if form.is_valid():
-            form.save()
+            # Créer d'abord l'utilisateur
+            user = User.objects.create_user(
+                username=form.cleaned_data['email'],  # Vous pouvez adapter selon le besoin
+                password='defaultpassword',  # Vous pouvez aussi demander un mot de passe
+                email=form.cleaned_data['email']
+            )
+            # Maintenant, créer le membre lié à cet utilisateur
+            member = form.save(commit=False)
+            member.user = user  # Lier l'utilisateur
+            member.save()
+
             return redirect('member_list')
     else:
         form = MemberForm()
+
     return render(request, 'personnel/add_member.html', {'form': form})
 
 
