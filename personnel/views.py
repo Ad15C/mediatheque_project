@@ -62,7 +62,16 @@ def add_media(request):
 def borrowing_media(request):
     member = request.user.member
     available_media = Media.objects.filter(available=True).exclude(media_type='jeu_plateau')
+    rules = BorrowingRule.objects.filter(active=True)  # Récupérer les règles actives
 
+    # Vérifier si l'utilisateur a déjà vu les règles, et ne pas les réafficher après emprunt
+    if not request.session.get('has_seen_rules', False):
+        request.session['has_seen_rules'] = False  # Initialiser si non défini (c'est une première visite)
+
+    context = {
+        'rules': rules,
+        'has_seen_rules': request.session.get('has_seen_rules', False),  # Passer la variable à la vue
+    }
 
     if request.method == 'POST':
         media_id = request.POST.get('media_id')
@@ -88,46 +97,30 @@ def borrowing_media(request):
                 borrow_success = True
                 messages.success(request,
                                  f"L'emprunt de {selected_media.name} a été confirmé pour {member.user.username}.")
-                return render(request, 'personnel/borrowing_media.html', {
-                    'available_media': available_media,
-                    'selected_media': selected_media,
-                    'member': member,
-                    'borrow_success': borrow_success,
-                    'blocked': blocked,
-                    'too_many_borrows': too_many_borrows,
-                    'has_delay': has_delay,
-                    'media_not_available': media_not_available,
-                    'rules': BorrowingRule.objects.filter(active=True),  # Passer les règles d'emprunt actives
-                })
+
+                # Une fois l'emprunt réussi, marquer que les règles ont été vues
+                request.session['has_seen_rules'] = True
             except ValidationError as e:
                 messages.error(request, str(e))  # Affiche un message d'erreur si l'emprunt échoue
 
-        else:
-            """ Afficher un message d'erreur si les critères d'emprunt ne sont pas respectés """
-            if media_not_available:
-                messages.error(request, "Le média sélectionné est déjà emprunté.")
-            elif blocked:
-                messages.error(request, "Ce membre est bloqué et ne peut pas emprunter de médias.")
-            elif too_many_borrows:
-                messages.error(request, "Ce membre a atteint la limite d'emprunts en cours.")
-            elif has_delay:
-                messages.error(request, "Ce membre a un emprunt en retard.")
-
-        return render(request, 'personnel/borrowing_media.html', {
-            'available_media': available_media,
-            'selected_media': selected_media,
-            'member': member,
-            'blocked': blocked,
-            'too_many_borrows': too_many_borrows,
-            'has_delay': has_delay,
-            'media_not_available': media_not_available,
-            'rules': BorrowingRule.objects.filter(active=True),
-        })
+            return render(request, 'personnel/borrowing_media.html', {
+                'available_media': available_media,
+                'selected_media': selected_media,
+                'member': member,
+                'borrow_success': borrow_success,
+                'blocked': blocked,
+                'too_many_borrows': too_many_borrows,
+                'has_delay': has_delay,
+                'media_not_available': media_not_available,
+                'rules': rules,  # Passer les règles d'emprunt actives
+            })
 
     return render(request, 'personnel/borrowing_media.html', {
         'available_media': available_media,
         'member': member,
-        'rules': BorrowingRule.objects.filter(active=True),  # Passer les règles d'emprunt actives
+        'rules': rules,
+        'selected_media': None,
+        'has_seen_rules': request.session.get('has_seen_rules', False),
     })
 
 
@@ -135,6 +128,7 @@ def borrowing_media(request):
 def borrowing_rules(request):
     rules = BorrowingRule.objects.filter(active=True)
     return render(request, 'personnel/borrowing_rules.html', {'rules': rules})
+
 
 
 def check_borrow_criteria(member, selected_media):
@@ -206,3 +200,4 @@ def add_member(request):
 def member_detail(request, member_id):
     member = get_object_or_404(Member, id=member_id)
     return render(request, 'personnel/member_detail.html', {'member': member})
+

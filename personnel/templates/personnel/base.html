@@ -19,6 +19,19 @@
         <!-- Retour à la page d'accueil -->
         <a href="{% url 'index' %}">Retour à l'accueil</a>
     </nav>
+    <div>
+	{% if user.is_authenticated %}
+    	<p>Connecté en tant que {{ user.username }} |
+    		<!-- Formulaire pour la déconnexion -->
+    		<form action="{% url 'logout' %}" method="post">
+        	{% csrf_token %}
+        	<button type="submit">Se déconnecter</button>
+    		</form>
+    	</p>
+	{% else %}
+    	<p><a href="{% url 'login' %}">Se connecter</a></p>
+	{% endif %}
+    </div>
     <h1>Bienvenue sur le site de la Médiathèque </h1>
     {% block content %}
         <!-- Contenu spécifique de chaque page -->

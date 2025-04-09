@@ -6,11 +6,14 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.validators import MaxValueValidator
 from django.db.models.manager import Manager
+from django.contrib.auth.models import User
+
 
 
 
 # Modèle Membre
 class Member(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
     email = models.EmailField()
     date_of_birth = models.DateField(null=True, blank=True)
@@ -96,7 +99,6 @@ class Borrow(models.Model):
     date_effective_return = models.DateField(null=True, blank=True)
     objects = models.Manager()
 
-
     """ Champs pour le contenu générique (livre, DVD, CD) """
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     object_id = models.PositiveIntegerField()
@@ -156,13 +158,14 @@ class Borrow(models.Model):
 # Représente une règle générale
 class BorrowingRule(models.Model):
     rule_name = models.CharField(max_length=100)
-    description = models.TextField()
-    value = models.IntegerField(validators=[MaxValueValidator(10)])  # par exemple, max = 10
+    description = models.CharField(max_length=255)
+    value = models.IntegerField(null=True, blank=True)
     active = models.BooleanField(default=True)
     objects: Manager['BorrowingRule'] = models.Manager()
 
     def __str__(self):
-        return self.rule_name
+        return self.description
+
 
     @classmethod
     def get_active_limit(cls):
