@@ -3,9 +3,10 @@ from .models import Borrow, Member, Media, Livre, DVD, CD, JeuPlateau, Borrowing
 from .forms import MediaForm, MemberForm
 from django.contrib import messages
 from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import ValidationError, ObjectDoesNotExist
+from django.core.exceptions import ValidationError, ObjectDoesNotExist, PermissionDenied
 from django.contrib.auth.decorators import login_required
-
+from django.contrib.auth.models import User
+from django.urls import reverse
 
 
 
@@ -90,7 +91,12 @@ def add_media(request):
 # Emprunter un média
 @login_required
 def borrowing_media(request):
-    member = request.user.member
+    try:
+        member = request.user.member  # Essayer d'accéder au membre
+    except Member.DoesNotExist:
+        messages.error(request, "Ce membre n'est pas associé à un utilisateur.")
+        return redirect('some_error_page')
+
     available_media = Media.objects.filter(available=True).exclude(media_type='jeu_plateau')
     rules = BorrowingRule.objects.filter(active=True)  # Récupérer les règles actives
 
@@ -192,7 +198,7 @@ def returning_media(request, borrow_id):
 @login_required
 def choose_borrow_to_return(request):
     borrows = Borrow.objects.filter(date_effective_return__isnull=True)
-    return render(request, 'personnel/choose_return.html', {'borrows': borrows})
+    return render(request, 'personnel/returning_media.html', {'borrows': borrows})
 
 
 # Afficher la liste des membres
@@ -205,16 +211,16 @@ def member_list(request):
 # Mettre à jour un Membre existant
 @login_required
 def update_member(request, member_id):
-
     """ Récupérer le membre avec l'ID """
     member = get_object_or_404(Member, id=member_id)
 
-    """ Si la requête est POST, cela signifie que l\'utilisateur souhaite sauvegarder les modifications """
+    """ Si la requête est POST, cela signifie que l'utilisateur souhaite sauvegarder les modifications """
     if request.method == 'POST':
         form = MemberForm(request.POST, instance=member)
         if form.is_valid():
             form.save()
             """  Rediriger vers la page des détails après la mise à jour"""
+            messages.success(request, "Les informations du membre ont été mises à jour.")
             return redirect('member_detail', member_id=member.id)
     else:
         """ Pré-remplir le formulaire avec les données du membre"""
@@ -224,23 +230,25 @@ def update_member(request, member_id):
 
 
 # Ajout d'un membre
-# Ajout d'un membre
 @login_required
 def add_member(request):
     if request.method == 'POST':
         form = MemberForm(request.POST)
         if form.is_valid():
-            # Créer d'abord l'utilisateur
-            user = User.objects.create_user(
-                username=form.cleaned_data['email'],  # Vous pouvez adapter selon le besoin
-                password='defaultpassword',  # Vous pouvez aussi demander un mot de passe
-                email=form.cleaned_data['email']
+            email = form.cleaned_data['email']
+
+            # Check if a User already exists with the same email
+            user, created = User.objects.get_or_create(
+                username=email,  # You can use email or another field
+                defaults={'email': email, 'password': 'defaultpassword'}
             )
-            # Maintenant, créer le membre lié à cet utilisateur
+
+            # Create the member and associate with the user
             member = form.save(commit=False)
-            member.user = user  # Lier l'utilisateur
+            member.user = user  # Link the user to the member
             member.save()
 
+            # Redirect after the member is added
             return redirect('member_list')
     else:
         form = MemberForm()
@@ -254,3 +262,15 @@ def member_detail(request, member_id):
     member = get_object_or_404(Member, id=member_id)
     return render(request, 'personnel/member_detail.html', {'member': member})
 
+
+# Suppression d'un membre
+@login_required
+def delete_member(request, member_id):
+    member = get_object_or_404(Member, id=member_id)
+
+    """ Vérifier que l'utilisateur est un administrateur """
+    if not request.user.is_staff:
+        raise PermissionDenied
+
+    member.delete()
+    return redirect('member_list')

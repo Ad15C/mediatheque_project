@@ -1,16 +1,18 @@
-{% block title %}Fiche Membre{% endblock %}
+{% extends 'personnel/base.html' %}
+
+{% block title %}Détails du membre{% endblock %}
 
 {% block content %}
-        <h2>Fiche du membre : {{ member.name }}</h2>
+    <h2>Détails du membre : {{ member.name }}</h2>
 
-            <p><strong>Nom : </strong>{{ member.name }}</p>
-            <p><strong>Email : </strong>{{ member.email }}</p>
-            <p><strong>Date de naissance : </strong>{{ member.date_of_birth }}</p>
-            <p><strong>Adresse : </strong>{{ member.address }}</p>
-            <p><strong>Téléphone : </strong>{{ member.phone_number }}</p>
-            <p><strong>Statut : </strong>{{ member.blocked|yesno:"Bloqué,Non bloqué" }}</p>
+        <p><strong>Nom :</strong> {{ member.name }}</p>
+        <p><strong>Email :</strong> {{ member.email }}</p>
+        <p><strong>Date de naissance :</strong> {{ member.date_of_birth }}</p>
+        <p><strong>Adresse :</strong> {{ member.address }}</p>
+        <p><strong>Téléphone :</strong> {{ member.phone_number }}</p>
+        <p><strong>Statut :</strong> {% if member.blocked %}Bloqué{% else %}Actif{% endif %}</p>
 
-    <br>
-    <a href="{% url 'update_member' member.id %}">Modifier ce membre</a>
-
+        <br>
+        <a href="{% url 'update_member' member.id %}">Modifier les informations</a>
+        <a href="{% url 'member_list' %}">Retour à la liste des membres</a>
 {% endblock %}

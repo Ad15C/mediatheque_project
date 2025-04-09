@@ -1,18 +1,19 @@
 {% extends 'personnel/base.html' %}
 
-{% block title %}Ajouter un membre{% endblock %}
-
 {% block content %}
-    <h2>Ajouter un nouveau membre : </h2>
+  <h2>Ajouter un Membre</h2>
 
-        <form method="post">
-            {% csrf_token %}
-            <p>Nom : {{ form.name }}</p>
-            <p>Email : {{ form.email }}</p>
-            <p>Date de naissance : {{ form.date_of_birth }}</p>
-            <p>Adresse : {{ form.address }}</p>
-            <p>Numéro de téléphone : {{ form.phone_number }}</p>
-            <br>
-            <button type="submit">Enregistrer</button>
-        </form>
+      {% if messages %}
+        <div class="messages">
+          {% for message in messages %}
+            <p class="message">{{ message }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <form method="POST">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Ajouter</button>
+      </form>
 {% endblock %}

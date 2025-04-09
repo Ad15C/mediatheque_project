@@ -34,11 +34,13 @@
         {% else %}
             <button type="submit">Confirmer l'emprunt</button>
         {% endif %}
+
     </form>
 
     {% if borrow_success %}
         <p style="color: green; font-weight: bold;">L'emprunt a été effectué avec succès pour le membre {{ member.user.username }}!</p>
     {% endif %}
+
 
     <hr>
     <!-- Affichage des règles d'emprunt uniquement si l'emprunt n'est pas encore effectué et si l'utilisateur ne les a pas déjà vues -->

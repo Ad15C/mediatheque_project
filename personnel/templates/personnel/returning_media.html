@@ -1,12 +1,18 @@
 {% extends 'personnel/base.html' %}
 
-{% block title %}Retourner un média{% endblock %}
+{% block title %}Choisir un emprunt à retourner{% endblock %}
 
 {% block content %}
-    <h2>Retourner un média à la médiathèque : </h2>
-        <p>{{ borrow.media }} emprunté par {{ borrow.borrower }}</p>
-            <form method="post">
-                {% csrf_token %}
-                <button type="submit">Confirmer le retour</button>
-            </form>
+  <h2>Choisissez un emprunt à retourner</h2>
+    <ul>
+        {% for borrow in borrows %}
+            <li>
+                {{ borrow.media.name }} emprunté par {{ borrow.borrower.user.username }}
+                <a href="{% url 'returning_media' borrow.id %}">Retourner ce média</a>
+            </li>
+        {% empty %}
+            <li>Aucun emprunt en cours.</li>
+        {% endfor %}
+    </ul>
+
 {% endblock %}

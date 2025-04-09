@@ -28,6 +28,8 @@
                 <td>
                     {% if member.id %}
                         <a href="{% url 'update_member' member.id %}">Mettre à jour</a>
+                        <a href="{% url 'member_detail' member.id %}">Voir les détails</a>
+                        <a href="{% url 'delete_member' member.id %}" onclick="return confirm('Êtes-vous sûr de vouloir supprimer ce membre ?');">Supprimer</a>
                     {% else %}
                         <p>ID manquant pour ce membre.</p>
                     {% endif %}
