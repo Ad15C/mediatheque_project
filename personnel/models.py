@@ -4,7 +4,6 @@ from django.utils import timezone
 from datetime import timedelta
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
-from django.core.validators import MaxValueValidator
 from django.db.models.manager import Manager
 from django.contrib.auth.models import User
 
