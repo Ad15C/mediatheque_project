@@ -1,0 +1,15 @@
+{% extends 'personnel/base.html' %}
+
+{% block title %}Suppression{% endblock %}
+
+{% block content %}
+    <h2>Êtes-vous sûr de vouloir supprimer ce membre ?</h2>
+        <p>Nom : {{ member.name }}</p>
+        <p>Email : {{ member.email }}</p>
+
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit">Oui, supprimer</button>
+            <a href="{% url 'member_list' %}">Annuler</a>
+        </form>
+{% endblock %}
