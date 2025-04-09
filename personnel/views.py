@@ -6,7 +6,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError, ObjectDoesNotExist, PermissionDenied
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
-from django.urls import reverse
+
 
 
 
@@ -274,3 +274,5 @@ def delete_member(request, member_id):
 
     member.delete()
     return redirect('member_list')
+
+
