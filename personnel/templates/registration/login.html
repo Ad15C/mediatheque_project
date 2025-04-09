@@ -1,0 +1,16 @@
+{% extends 'personnel/base.html' %}
+
+{% block title %}Connexion{% endblock %}
+
+{% block content %}
+ <h2>Connexion à mon espace</h2>
+  {% if form.errors %}
+    <p style="color:red;">Nom d’utilisateur ou mot de passe incorrect.</p>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Se connecter</button>
+  </form>
+{% endblock %}
