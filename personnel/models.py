@@ -6,7 +6,8 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db.models.manager import Manager
 from django.contrib.auth.models import User
-
+from django.contrib.contenttypes.fields import GenericRelation
+from .messages import BORROW_BLOCKED, BORROW_TOO_MANY, MEDIA_NOT_AVAILABLE, MEMBER_HAS_DELAY
 
 
 
@@ -21,12 +22,15 @@ class Member(models.Model):
     blocked = models.BooleanField(default=False)
     objects = models.Manager()
 
+
     def __str__(self):
         return self.name
+
 
     def currently_borrowed(self):
         """Retourne le nombre d'emprunts non rendus"""
         return Borrow.objects.filter(borrower=self, date_effective_return__isnull=True ).count()
+
 
     def got_delayed(self):
         """Vérifie si l'utilisateur a un emprunt en retard"""
@@ -38,23 +42,27 @@ class Member(models.Model):
 
     @classmethod
     def check_borrow_criteria(cls, member, selected_media):
-        """Vérifie si un membre peut emprunter un média en fonction des règles actives."""
-        blocked = member.blocked
-        has_delay = member.got_delayed()
-        media_not_available = not selected_media.available
 
-        # Limite d'emprunt active
+        if member.blocked:
+            return True, BORROW_BLOCKED
+
+        if member.got_delayed():
+            return True, MEMBER_HAS_DELAY
+
         limite = BorrowingRule.get_active_limit()
+        if member.currently_borrowed() >= limite:
+            return True, BORROW_TOO_MANY.format(current_borrows=member.currently_borrowed(), limit=limite)
 
-        # Vérifie si le membre a dépassé la limite d'emprunts
-        too_many_borrows = member.currently_borrowed() >= limite
+        if not selected_media.available:
+            return True, MEDIA_NOT_AVAILABLE
 
-        # Autres validations selon la logique métier
-        if isinstance(selected_media, JeuPlateau):
-            messages.error(request, "Les jeux de plateau ne peuvent pas être empruntés.")
-            return redirect('borrowing_media')
+        if selected_media.media_type == 'jeu_plateau':
+            return True, "Les jeux de plateau ne sont pas disponibles à l'emprunt."
 
-        return blocked, too_many_borrows, has_delay, media_not_available
+        if selected_media.media_type != 'jeu_plateau' and (selected_media.date_due - timezone.now()).days > 7:
+            return True, "La durée maximale d'emprunt est de 7 jours."
+
+        return False, None
 
 
 # Fonction pour fixer la date de retour par défaut (+7 jours)
@@ -73,14 +81,15 @@ class Media(models.Model):
         ('jeu_plateau', 'Jeu de Plateau'),
     ]
 
-    name= models.CharField(max_length=200)
-    available=models.BooleanField(default=True)
+    name = models.CharField(max_length=200)
+    available = models.BooleanField(default=True)
     media_type = models.CharField(max_length=50, choices=TYPE_CHOICES)
+    borrows = GenericRelation('Borrow', related_query_name='media')
     objects = models.Manager()
+
 
     def __str__(self):
         return f"{self.name} ({self.get_media_type_display()})"  # type: ignore[attr-defined]
-
 
 
 class Livre(Media):
@@ -90,6 +99,7 @@ class Livre(Media):
         self.media_type = 'livre'
         super().save(*args, **kwargs)
 
+
 class DVD(Media):
     producer=models.CharField(max_length=200)
 
@@ -97,12 +107,14 @@ class DVD(Media):
         self.media_type = 'dvd'
         super().save(*args, **kwargs)
 
+
 class CD(Media):
     artist=models.CharField(max_length=200)
 
     def save(self, *args, **kwargs):
         self.media_type = 'cd'
         super().save(*args, **kwargs)
+
 
 class JeuPlateau(models.Model):
     name=models.CharField(max_length=200)
@@ -113,47 +125,54 @@ class JeuPlateau(models.Model):
         return self.name
 
 
-
-
 # Représente un emprunt concret effectué par un membre
 class Borrow(models.Model):
-    borrower = models.ForeignKey(Member, on_delete=models.CASCADE)
-    date_borrowed = models.DateField(default=timezone.now)
-    date_due = models.DateTimeField(default=default_due_date)
-    date_effective_return = models.DateField(null=True, blank=True)
-    objects = models.Manager()
+    borrower = models.ForeignKey(Member, on_delete=models.CASCADE)  # L'emprunteur (Member)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, default=1)
+    date_borrowed = models.DateField(default=timezone.now)  # Date de l'emprunt
+    date_due = models.DateTimeField(default=default_due_date)  # Date de retour prévue
+    date_effective_return = models.DateField(null=True, blank=True)  # Date de retour réelle
 
-    """ Champs pour le contenu générique (livre, DVD, CD) """
-    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
-    object_id = models.PositiveIntegerField()
+
+    """  Champs pour la relation générique"""
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)  # Type de l'objet emprunté
+    object_id = models.PositiveIntegerField()  # ID de l'objet emprunté
     media = GenericForeignKey('content_type', 'object_id')
+
+
+    """ Un manager pour faciliter les requêtes si nécessaire"""
+    objects = models.Manager()
 
     def __str__(self):
         return f"Emprunt de {self.media} par {self.borrower} - {'En retard' if self.is_late() else 'En cours'}"
 
     def clean(self):
-        """Validation des règles d'emprunt"""
+        errors = []
+
         if not self.borrower:
-            raise ValidationError("Un emprunteur est requis pour cet emprunt.")
+            errors.append("Un emprunteur est requis.")
 
-        borrower = self.borrower
+        if self.borrower.blocked:
+            errors.append(BORROW_BLOCKED)
 
-        if borrower.blocked:
-            raise ValidationError("Cet emprunteur est bloqué.")
+        if self.borrower.got_delayed():
+            errors.append(MEMBER_HAS_DELAY)
 
-        if borrower.got_delayed():
-            raise ValidationError("L'emprunteur a un emprunt en retard.")
+        if self.return_date and (self.return_date - self.date_borrowed).days > 7:
+            raise ValidationError("La durée d'emprunt ne peut excéder 7 jours.")
 
         limite = BorrowingRule.get_active_limit()
-        if borrower.currently_borrowed() >= limite:
-            raise ValidationError(f"Un emprunteur ne peut pas avoir plus de {limite} emprunts en même temps.")
+        if self.borrower.currently_borrowed() >= limite:
+            errors.append(BORROW_TOO_MANY.format(current_borrows=self.borrower.currently_borrowed(), limit=limite))
 
         if isinstance(self.media, JeuPlateau):
-            raise ValidationError("Les jeux de plateau ne peuvent pas être empruntés.")
+            errors.append("Les jeux de plateau ne peuvent pas être empruntés.")
 
-        if not self.media or not getattr(self.media, 'available', False):
-            raise ValidationError("Ce média n'est pas disponible.")
+        if not self.media or not self.media.available:
+            errors.append(MEDIA_NOT_AVAILABLE)
 
+        if errors:
+            raise ValidationError(errors)
 
 
     """ Gère l'emprunt de manière sécurisée """
