@@ -8,9 +8,13 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib.auth.hashers import make_password
 from .messages import  BORROW_BLOCKED, BORROW_TOO_MANY, MEDIA_NOT_AVAILABLE
+from django.contrib.auth.views import LoginView
+from django.urls import reverse_lazy
 
 
-
+class CustomLoginView(LoginView):
+    template_name = 'registration/login.html'
+    success_url = reverse_lazy('index')
 
 # Page d'accueil pour afficher les différentes actions disponibles pour le personnel
 def index(request):
