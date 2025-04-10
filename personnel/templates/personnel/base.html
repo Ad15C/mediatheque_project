@@ -28,10 +28,18 @@
         	<button type="submit">Se déconnecter</button>
     		</form>
     	</p>
-	{% else %}
+	    {% else %}
     	<p><a href="{% url 'login' %}">Se connecter</a></p>
 	{% endif %}
     </div>
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+            <p>{{ message }}</p>
+        {% endfor %}
+    </div>
+{% endif %}
+
     <h1>Bienvenue sur le site de la Médiathèque </h1>
     {% block content %}
         <!-- Contenu spécifique de chaque page -->

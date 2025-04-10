@@ -88,37 +88,40 @@ def add_media(request):
 
 
 
+
 # Emprunter un média
 @login_required
 def borrowing_media(request):
-    try:
-        member = request.user.member  # Essayer d'accéder au membre
-    except Member.DoesNotExist:
-        messages.error(request, "Ce membre n'est pas associé à un utilisateur.")
-        return redirect('some_error_page')
+    # Vérifie si l'utilisateur a un membre, sinon crée-le
+    create_member_for_user(request.user)  # Créer un membre si nécessaire
 
-    available_media = Media.objects.filter(available=True).exclude(media_type='jeu_plateau')
-    rules = BorrowingRule.objects.filter(active=True)  # Récupérer les règles actives
+    # Récupère le membre de l'utilisateur
+    member = request.user.member
 
-    # Vérifier si l'utilisateur a déjà vu les règles, et ne pas les réafficher après emprunt
-    if not request.session.get('has_seen_rules', False):
-        request.session['has_seen_rules'] = False  # Initialiser si non défini (c'est une première visite)
-
-    borrow_success = False  # Déplacer ici pour éviter la référence avant l'assignation
+    available_media = Media.objects.filter(available=True)
 
     if request.method == 'POST':
         media_id = request.POST.get('media_id')
         try:
             selected_media = Media.objects.get(id=media_id)
-        except ObjectDoesNotExist:
+        except Media.DoesNotExist:
             messages.error(request, "Ce média n'existe pas.")
             return redirect('borrowing_media')
 
-        # Vérification des critères d'emprunt
-        blocked, too_many_borrows, has_delay, media_not_available = check_borrow_criteria(member, selected_media)
+        # Vérification des critères d'emprunt via la méthode du modèle
+        blocked, too_many_borrows, has_delay, media_not_available = Member.check_borrow_criteria(member, selected_media)
 
-        if not blocked and not too_many_borrows and not has_delay and not media_not_available:
-            """ Créer l'emprunt ici """
+        if blocked:
+            messages.error(request, "Cet utilisateur est bloqué.")
+        elif too_many_borrows:
+            messages.error(request,
+                           f"Vous avez déjà {member.currently_borrowed()} emprunts. La limite est de {BorrowingRule.get_active_limit()} emprunts.")
+        elif has_delay:
+            messages.error(request, "Vous avez un emprunt en retard.")
+        elif media_not_available:
+            messages.error(request, "Ce média n'est pas disponible.")
+        else:
+            # Création de l'emprunt
             borrow = Borrow(
                 borrower=member,
                 media=selected_media,
@@ -126,38 +129,20 @@ def borrowing_media(request):
                 object_id=selected_media.id
             )
             try:
-                """ Validation des règles d'emprunt"""
-                borrow.clean()
-                borrow.confirm_borrow()
+                borrow.clean()  # Validation des règles d'emprunt
+                borrow.confirm_borrow()  # Effectue l'emprunt et marque le média comme emprunté
                 borrow_success = True
-                messages.success(request,
-                                 f"L'emprunt de {selected_media.name} a été confirmé pour {member.user.username}.")
-
-                """ Une fois l'emprunt réussi, marquer que les règles ont été vues """
-                request.session['has_seen_rules'] = True
+                messages.success(request, f"L'emprunt de {selected_media.name} a été effectué avec succès.")
             except ValidationError as e:
                 messages.error(request, str(e))
 
-            return render(request, 'personnel/borrowing_media.html', {
-                'available_media': available_media,
-                'selected_media': selected_media,
-                'member': member,
-                'borrow_success': borrow_success,
-                'blocked': blocked,
-                'too_many_borrows': too_many_borrows,
-                'has_delay': has_delay,
-                'media_not_available': media_not_available,
-                'rules': rules,  # Passer les règles d'emprunt actives
-            })
+        return render(request, 'personnel/borrowing_media.html', {
+            'available_media': available_media,
+            'member': member,
+            'borrow_success': borrow_success,
+        })
 
-    return render(request, 'personnel/borrowing_media.html', {
-        'available_media': available_media,
-        'member': member,
-        'rules': rules,
-        'selected_media': None,
-        'has_seen_rules': request.session.get('has_seen_rules', False),
-    })
-
+    return render(request, 'personnel/borrowing_media.html', {'available_media': available_media, 'member': member})
 
 
 # Règles d'emprunt d'un média
@@ -180,16 +165,16 @@ def check_borrow_criteria(member, selected_media):
 # Retourner un emprunt
 @login_required
 def returning_media(request, borrow_id):
-    if borrow_id == 0:
-        messages.error(request, "Aucun emprunt valide n’a été sélectionné.")
-        return redirect('borrowing_media')
-
     borrow = get_object_or_404(Borrow, id=borrow_id)
 
+    if borrow.date_effective_return:
+        messages.error(request, f"Le média {borrow.media.name} a déjà été retourné.")
+        return redirect('choose_borrow')
+
     if request.method == "POST":
-        borrow.return_media()
+        borrow.return_media()  # Assurez-vous que cette méthode met à jour les champs nécessaires
         messages.success(request, f"Le média {borrow.media.name} a été retourné et est maintenant disponible.")
-        return redirect('borrowing_media')
+        return redirect('choose_borrow')
 
     return render(request, 'personnel/returning_media.html', {'borrow': borrow})
 
@@ -201,11 +186,50 @@ def choose_borrow_to_return(request):
     return render(request, 'personnel/returning_media.html', {'borrows': borrows})
 
 
+def create_member_for_user(user):
+    """Cette fonction crée un membre si l'utilisateur n'en a pas encore."""
+    if not hasattr(user, 'member'):
+        member = Member(user=user)
+        member.save()
+
+
+# Ajout d'un membre
+@login_required
+def add_member(request):
+    if request.method == 'POST':
+        form = MemberForm(request.POST)
+        if form.is_valid():
+            email = form.cleaned_data['email']
+
+            """ Vérifie si un utilisateur existe déjà avec ce mail"""
+            user, created = User.objects.get_or_create(
+                username=email,
+                defaults={'email': email, 'password': make_password('defaultpassword')}
+            )
+
+            """Créer le membre et l'associer à l'utilisateur"""
+            member = form.save(commit=False)
+            member.user = user
+            member.save()
+
+            return redirect('member_list')
+    else:
+        form = MemberForm()
+
+    return render(request, 'personnel/add_member.html', {'form': form})
+
+
 # Afficher la liste des membres
 def member_list(request):
     members = Member.objects.all()
     return render(request, 'personnel/member_list.html', {'members': members})
 
+
+# Fiche détaillée d'un membre
+@login_required
+def member_detail(request, member_id):
+    member = get_object_or_404(Member, id=member_id)
+    return render(request, 'personnel/member_detail.html', {'member': member})
 
 
 # Mettre à jour un Membre existant
@@ -229,39 +253,6 @@ def update_member(request, member_id):
     return render(request, 'personnel/update_member.html', {'form': form, 'member': member})
 
 
-# Ajout d'un membre
-@login_required
-def add_member(request):
-    if request.method == 'POST':
-        form = MemberForm(request.POST)
-        if form.is_valid():
-            email = form.cleaned_data['email']
-
-            # Check if a User already exists with the same email
-            user, created = User.objects.get_or_create(
-                username=email,  # You can use email or another field
-                defaults={'email': email, 'password': 'defaultpassword'}
-            )
-
-            # Create the member and associate with the user
-            member = form.save(commit=False)
-            member.user = user  # Link the user to the member
-            member.save()
-
-            # Redirect after the member is added
-            return redirect('member_list')
-    else:
-        form = MemberForm()
-
-    return render(request, 'personnel/add_member.html', {'form': form})
-
-
-# Fiche détaillée d'un membre
-@login_required
-def member_detail(request, member_id):
-    member = get_object_or_404(Member, id=member_id)
-    return render(request, 'personnel/member_detail.html', {'member': member})
-
 
 # Suppression d'un membre
 @login_required
@@ -276,3 +267,5 @@ def delete_member(request, member_id):
     return redirect('member_list')
 
 
+def member_error(request):
+    return render(request, 'personnel/member_error.html')
