@@ -36,10 +36,33 @@ class Member(models.Model):
             date_due__lt=timezone.now()
         ).exists()
 
+    @classmethod
+    def check_borrow_criteria(cls, member, selected_media):
+        """Vérifie si un membre peut emprunter un média en fonction des règles actives."""
+        blocked = member.blocked
+        has_delay = member.got_delayed()
+        media_not_available = not selected_media.available
+
+        # Limite d'emprunt active
+        limite = BorrowingRule.get_active_limit()
+
+        # Vérifie si le membre a dépassé la limite d'emprunts
+        too_many_borrows = member.currently_borrowed() >= limite
+
+        # Autres validations selon la logique métier
+        if isinstance(selected_media, JeuPlateau):
+            messages.error(request, "Les jeux de plateau ne peuvent pas être empruntés.")
+            return redirect('borrowing_media')
+
+        return blocked, too_many_borrows, has_delay, media_not_available
+
 
 # Fonction pour fixer la date de retour par défaut (+7 jours)
 def default_due_date():
     return timezone.now() + timedelta(days=7)
+
+
+
 
 #Modèle Media
 class Media(models.Model):
@@ -90,6 +113,8 @@ class JeuPlateau(models.Model):
         return self.name
 
 
+
+
 # Représente un emprunt concret effectué par un membre
 class Borrow(models.Model):
     borrower = models.ForeignKey(Member, on_delete=models.CASCADE)
@@ -130,28 +155,43 @@ class Borrow(models.Model):
             raise ValidationError("Ce média n'est pas disponible.")
 
 
-    """ Rend le média disponible et enregistre l'emprunt """
+
+    """ Gère l'emprunt de manière sécurisée """
     def confirm_borrow(self):
+        """Effectue la vérification et marque le média comme emprunté."""
         if not self.media.available:
             raise ValidationError("Le média n'est plus disponible.")
-        """ Marquer le média comme non disponible """
+
+        if Borrow.objects.filter(media=self.media, date_effective_return__isnull=True).exists():
+            raise ValidationError("Le média est déjà emprunté.")
+
         self.media.available = False
         self.media.save()
-
         self.save()
+
 
     """ Vérifie si l'emprunteur est en retard """
     def is_late(self):
         return self.date_effective_return is None and self.date_due is not None and timezone.now() > self.date_due
 
 
-    """ Met à jour les date de retour et rend le média à nouveau disponible """
+    """ Rendre un emprunt """
     def return_media(self):
+        """ Vérifier si le média a déjà été retourné"""
+        if self.date_effective_return:
+            raise ValidationError("Ce média a déjà été retourné.")
+
+        """ Marquer la date de retour"""
         self.date_effective_return = timezone.now()
+
+        """ Rendre le média disponible à nouveau"""
         if hasattr(self.media, 'available'):
             self.media.available = True
             self.media.save()
+
         self.save()
+
+
 
 
 # Représente une règle générale

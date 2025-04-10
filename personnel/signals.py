@@ -4,13 +4,11 @@ from django.contrib.auth.models import User
 from .models import Member
 
 @receiver(post_save, sender=User)
-def create_member_for_user(_, instance, created, **kwargs):
-    if created:
-        member = Member.objects.create(user=instance)
-        print(f"Un membre a été créé pour {instance.username} avec l'ID {member.id}")
+def create_member_for_user(sender, instance, created, **kwargs):
+    if created and not hasattr(instance, 'member'):
+        Member.objects.create(user=instance)
 
 @receiver(post_save, sender=User)
-def save_member(_, instance, **kwargs):
-    # Sauvegarde le membre associé à l'utilisateur
+def save_member(sender, instance, **kwargs):
     if hasattr(instance, 'member'):
         instance.member.save()

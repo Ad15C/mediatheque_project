@@ -17,4 +17,5 @@ urlpatterns = [
     path("ajouter_membre/", views.add_member, name="add_member"),
     path("mettre_a_jour_membre/<int:member_id>", views.update_member, name="update_member"),
     path('membres/<int:member_id>/supprimer/', views.delete_member, name='delete_member'),
+    path('erreur-membre/', views.member_error, name='member_error'),
 ]
