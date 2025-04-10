@@ -197,19 +197,18 @@ def add_member(request):
         if form.is_valid():
             email = form.cleaned_data['email']
 
-            """Vérifie si un utilisateur existe déjà avec ce mail"""
+            # Vérifie si un utilisateur existe déjà avec cet email
             user, created = User.objects.get_or_create(
                 username=email,
                 defaults={'email': email, 'password': make_password('defaultpassword')}
             )
 
-            """Créer le membre et l'associer à l'utilisateur"""
-            member = form.save(commit=False)
-            member.user = user
-            member.save()
-
-            """Crée un membre si l'utilisateur n'en a pas déjà un"""
-            create_member_for_user(user)
+            # Vérifie si un membre existe déjà pour cet utilisateur
+            if not Member.objects.filter(user=user).exists():
+                # Créer le membre s'il n'en existe pas déjà un
+                member = form.save(commit=False)
+                member.user = user
+                member.save()
 
             return redirect('member_list')
     else:
