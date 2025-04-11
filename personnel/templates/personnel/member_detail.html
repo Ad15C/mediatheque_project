@@ -1,18 +1,33 @@
 {% extends 'personnel/base.html' %}
 
-{% block title %}Détails du membre{% endblock %}
+{% block title %}Détail du média{% endblock %}
 
 {% block content %}
-    <h2>Détails du membre : {{ member.name }}</h2>
+    {% if media.is_visible %}
+        <h2>{{ media.name }}</h2>
 
-        <p><strong>Nom :</strong> {{ member.name }}</p>
-        <p><strong>Email :</strong> {{ member.email }}</p>
-        <p><strong>Date de naissance :</strong> {{ member.date_of_birth }}</p>
-        <p><strong>Adresse :</strong> {{ member.address }}</p>
-        <p><strong>Téléphone :</strong> {{ member.phone_number }}</p>
-        <p><strong>Statut :</strong> {% if member.blocked %}Bloqué{% else %}Actif{% endif %}</p>
+        {% if media.author %}
+        <p>Auteur : {{ media.author }}</p>
+        {% endif %}
 
-        <br>
-        <a href="{% url 'update_member' member.id %}">Modifier les informations</a>
-        <a href="{% url 'member_list' %}">Retour à la liste des membres</a>
+        {% if media.producer %}
+        <p>Producteur : {{ media.producer }}</p>
+        {% endif %}
+
+        {% if media.artist %}
+        <p>Artiste : {{ media.artist }}</p>
+        {% endif %}
+
+        {% if media.creators %}
+            <p>Créateurs : {{ media.creators }}</p>
+        {% endif %}
+
+
+        <p>Disponible : {{ media.available|yesno:"Oui,Non" }}</p>
+
+    {% else %}
+        <p>Ce média n'est pas visible.</p>
+    {% endif %}
+
+    <a href="{% url 'media_list' %}">← Retour à la liste des médias</a>
 {% endblock %}
