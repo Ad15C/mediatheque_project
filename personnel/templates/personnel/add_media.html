@@ -3,53 +3,64 @@
 {% block title %}Ajouter un média{% endblock %}
 
 {% block content %}
-    <h2>Ajouter un média : </h2>
+<h2>Ajouter un média : </h2>
 
-    <form method="post">
-        {% csrf_token %}
-        {{ form.as_p }}
+<form method="post">
+{% csrf_token %}
+{{ form.as_p }}
 
-        <div>
-            <label for="id_media_type">Catégorie de média :</label>
-            <select name="media_type" id="id_media_type" onchange="toggleFields()">
-                <option value="livre" {% if form.media_type.value == 'livre' %}selected{% endif %}>Livre</option>
-                <option value="dvd" {% if form.media_type.value == 'dvd' %}selected{% endif %}>DVD</option>
-                <option value="cd" {% if form.media_type.value == 'cd' %}selected{% endif %}>CD</option>
-                <option value="jeu_plateau" {% if form.media_type.value == 'jeu_plateau' %}selected{% endif %}>Jeu de Plateau</option>
-            </select>
-        </div>
+<!-- Affichage des erreurs de chaque champ -->
+{% for field in form %}
+{% if field.errors %}
+    <div class="error">
+        {% for error in field.errors %}
+            <p>{{ error }}</p>
+        {% endfor %}
+    </div>
+{% endif %}
+{% endfor %}
 
-        <div class="dynamic-fields">
-            <div id="author-field" class="field" {% if form.media_type.value != 'livre' %}style="display:none;"{% endif %}>
-                <label for="id_author">Auteur</label>
-                <input type="text" name="author" id="id_author" value="{{ form.author.value }}">
-            </div>
-            <div id="producer-field" class="field" {% if form.media_type.value != 'dvd' %}style="display:none;"{% endif %}>
-                <label for="id_producer">Producteur</label>
-                <input type="text" name="producer" id="id_producer" value="{{ form.producer.value }}">
-            </div>
-            <div id="artist-field" class="field" {% if form.media_type.value != 'cd' %}style="display:none;"{% endif %}>
-                <label for="id_artist">Artiste</label>
-                <input type="text" name="artist" id="id_artist" value="{{ form.artist.value }}">
-            </div>
-            <div id="creators-field" class="field" {% if form.media_type.value != 'jeu_plateau' %}style="display:none;"{% endif %}>
-                <label for="id_creators">Créateurs</label>
-                <input type="text" name="creators" id="id_creators" value="{{ form.creators.value }}">
-            </div>
-        </div>
+<div>
+    <label for="id_media_type">Catégorie de média :</label>
+    <select name="media_type" id="id_media_type" onchange="toggleFields()">
+        <option value="livre" {% if form.media_type.value == 'livre' %}selected{% endif %}>Livre</option>
+        <option value="dvd" {% if form.media_type.value == 'dvd' %}selected{% endif %}>DVD</option>
+        <option value="cd" {% if form.media_type.value == 'cd' %}selected{% endif %}>CD</option>
+        <option value="jeu_plateau" {% if form.media_type.value == 'jeu_plateau' %}selected{% endif %}>Jeu de Plateau</option>
+    </select>
+</div>
 
-        <button type="submit">Enregistrer</button>
-    </form>
+<div class="dynamic-fields">
+    <div id="author-field" class="field" {% if form.media_type.value != 'livre' %}style="display:none;"{% endif %}>
+        <label for="id_author">Auteur</label>
+        <input type="text" name="author" id="id_author" value="{{ form.author.value }}">
+    </div>
+    <div id="producer-field" class="field" {% if form.media_type.value != 'dvd' %}style="display:none;"{% endif %}>
+        <label for="id_producer">Producteur</label>
+        <input type="text" name="producer" id="id_producer" value="{{ form.producer.value }}">
+    </div>
+    <div id="artist-field" class="field" {% if form.media_type.value != 'cd' %}style="display:none;"{% endif %}>
+        <label for="id_artist">Artiste</label>
+        <input type="text" name="artist" id="id_artist" value="{{ form.artist.value }}">
+    </div>
+    <div id="creators-field" class="field" {% if form.media_type.value != 'jeu_plateau' %}style="display:none;"{% endif %}>
+        <label for="id_creators">Créateurs</label>
+        <input type="text" name="creators" id="id_creators" value="{{ form.creators.value }}">
+    </div>
+</div>
 
-    <script>
-        function toggleFields() {
-            const mediaType = document.getElementById("id_media_type").value;
-            document.getElementById("author-field").style.display = mediaType === 'livre' ? 'block' : 'none';
-            document.getElementById("producer-field").style.display = mediaType === 'dvd' ? 'block' : 'none';
-            document.getElementById("artist-field").style.display = mediaType === 'cd' ? 'block' : 'none';
-            document.getElementById("creators-field").style.display = mediaType === 'jeu_plateau' ? 'block' : 'none';
-        }
+<button type="submit">Enregistrer</button>
+</form>
 
-        window.onload = toggleFields;
-    </script>
+<script>
+    function toggleFields() {
+        const mediaType = document.getElementById("id_media_type").value;
+        document.getElementById("author-field").style.display = mediaType === 'livre' ? 'block' : 'none';
+        document.getElementById("producer-field").style.display = mediaType === 'dvd' ? 'block' : 'none';
+        document.getElementById("artist-field").style.display = mediaType === 'cd' ? 'block' : 'none';
+        document.getElementById("creators-field").style.display = mediaType === 'jeu_plateau' ? 'block' : 'none';
+    }
+
+    window.onload = toggleFields;
+</script>
 {% endblock %}
