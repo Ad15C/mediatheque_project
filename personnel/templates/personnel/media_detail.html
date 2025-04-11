@@ -1,23 +1,27 @@
 {% extends 'personnel/base.html' %}
 
-{% block title %}Fiche média{% endblock %}
+{% block title %}Détail du média{% endblock %}
 
 {% block content %}
-    <h2> Fiche média : </h2>
+    <h2>{{ media.name }}</h2>
 
-        <h3>{{ media.name }}</h3>
-          <p>Type : {{ media.get_media_type_display }}</p>
-          <p>Disponible : {{ media.available|yesno:"Oui,Non" }}</p>
+    {% if media.author %}
+        <p>Auteur : {{ media.author }}</p>
+    {% endif %}
 
-          {% if media.media_type == "livre" %}
-            <p>Auteur : {{ media.author }}</p>
+    {% if media.producer %}
+        <p>Producteur : {{ media.producer }}</p>
+    {% endif %}
 
-          {% elif media.media_type == "dvd" %}
-            <p>Producteur : {{ media.producer }}</p>
+    {% if media.artist %}
+        <p>Artiste : {{ media.artist }}</p>
+    {% endif %}
 
-          {% elif media.media_type == "cd" %}
-            <p>Artiste : {{ media.artist }}</p>
-          {% endif %}
+    {% if media.creators %}
+        <p>Créateurs : {{ media.creators }}</p>
+    {% endif %}
 
-          <a href="{% url 'media_list' %}">← Retour à la liste des médias</a>
+    <p>Disponible : {{ media.available|yesno:"Oui,Non" }}</p>
+
+    <a href="{% url 'media_list' %}">← Retour à la liste des médias</a>
 {% endblock %}

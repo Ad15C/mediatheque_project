@@ -10,6 +10,9 @@ from django.contrib.auth.hashers import make_password
 from .messages import  BORROW_BLOCKED, BORROW_TOO_MANY, MEDIA_NOT_AVAILABLE
 from django.contrib.auth.views import LoginView
 from django.urls import reverse_lazy
+from django.http import Http404
+
+
 
 
 class CustomLoginView(LoginView):
@@ -38,16 +41,26 @@ def media_list(request):
     })
 
 
-# Fiche détail d\'un média
+# Details des médias
+@login_required
 def media_detail(request, pk):
-    media = get_object_or_404(Media, pk=pk)
-    for attr in ('livre', 'dvd', 'cd'):
-        if hasattr(media, attr):
-            specific = getattr(media, attr)
-            break
-    else:
-        specific = media
-    return render(request, 'personnel/media_detail.html', {'media': specific})
+    try:
+        media = JeuPlateau.objects.get(pk=pk)
+    except JeuPlateau.DoesNotExist:
+        try:
+            media = Livre.objects.get(pk=pk)
+        except Livre.DoesNotExist:
+            try:
+                media = DVD.objects.get(pk=pk)
+            except DVD.DoesNotExist:
+                try:
+                    media = CD.objects.get(pk=pk)
+                except CD.DoesNotExist:
+                    raise Http404("Média non trouvé")
+
+    print(f"Media récupéré : {media}")  # Afficher l'objet récupéré
+
+    return render(request, 'personnel/media_detail.html', {'media': media})
 
 
 # Ajout d'un média
