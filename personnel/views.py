@@ -45,22 +45,18 @@ def media_list(request):
 @login_required
 def media_detail(request, pk):
     try:
-        media = JeuPlateau.objects.get(pk=pk)
-    except JeuPlateau.DoesNotExist:
+        media = Livre.objects.get(pk=pk)
+    except Livre.DoesNotExist:
         try:
-            media = Livre.objects.get(pk=pk)
-        except Livre.DoesNotExist:
+            media = DVD.objects.get(pk=pk)
+        except DVD.DoesNotExist:
             try:
-                media = DVD.objects.get(pk=pk)
-            except DVD.DoesNotExist:
-                try:
-                    media = CD.objects.get(pk=pk)
-                except CD.DoesNotExist:
-                    raise Http404("Média non trouvé")
-
-    print(f"Media récupéré : {media}")  # Afficher l'objet récupéré
+                media = CD.objects.get(pk=pk)
+            except CD.DoesNotExist:
+                media = JeuPlateau.objects.get(pk=pk)
 
     return render(request, 'personnel/media_detail.html', {'media': media})
+
 
 
 # Ajout d'un média

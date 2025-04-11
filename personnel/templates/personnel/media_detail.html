@@ -21,6 +21,7 @@
         <p>Créateurs : {{ media.creators }}</p>
     {% endif %}
 
+
     <p>Disponible : {{ media.available|yesno:"Oui,Non" }}</p>
 
     <a href="{% url 'media_list' %}">← Retour à la liste des médias</a>
