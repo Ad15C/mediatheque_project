@@ -66,7 +66,6 @@ def add_media(request):
         form = MediaForm(request.POST)
         if form.is_valid():
             media_type = form.cleaned_data['media_type']
-            # En fonction du type de média, créer l'objet correspondant
             if media_type == 'livre':
                 Livre.objects.create(
                     name=form.cleaned_data['name'],
@@ -92,13 +91,16 @@ def add_media(request):
                 JeuPlateau.objects.create(
                     name=form.cleaned_data['name'],
                     creators=form.cleaned_data['creators'],
+                    available=form.cleaned_data['available'],
                 )
+            return redirect('media_list')  # Redirige vers la liste des médias
+        else:
+            print(form.errors)
+            return render(request, 'personnel/add_media.html', {'form': form})
 
-            return redirect('media_list')
-    else:
-        form = MediaForm()
-
+    form = MediaForm()
     return render(request, 'personnel/add_media.html', {'form': form})
+
 
 
 
