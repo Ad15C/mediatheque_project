@@ -39,15 +39,25 @@ def media_list(request):
 
 
 # Fiche détail d\'un média
+@login_required
 def media_detail(request, pk):
-    media = get_object_or_404(Media, pk=pk)
-    for attr in ('livre', 'dvd', 'cd'):
-        if hasattr(media, attr):
-            specific = getattr(media, attr)
-            break
-    else:
-        specific = media
-    return render(request, 'personnel/media_detail.html', {'media': specific})
+    try:
+        media = Livre.objects.get(pk=pk)
+    except Livre.DoesNotExist:
+        try:
+            media = JeuPlateau.objects.get(pk=pk)
+            print(f"JeuPlateau récupéré: {media.name}, Créateurs: {media.creators}")
+        except JeuPlateau.DoesNotExist:
+            try:
+                media = DVD.objects.get(pk=pk)
+            except DVD.DoesNotExist:
+                try:
+                    media = CD.objects.get(pk=pk)
+                except CD.DoesNotExist:
+                    raise Http404("Média non trouvé")
+
+    print(f"Media récupéré : {media}")
+    return render(request, 'personnel/media_detail.html', {'media': media})
 
 
 # Ajout d'un média
