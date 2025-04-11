@@ -222,6 +222,7 @@ def add_member(request):
 
 
 # Afficher la liste des membres
+@login_required
 def member_list(request):
     members = Member.objects.all()
     return render(request, 'personnel/member_list.html', {'members': members})
