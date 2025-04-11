@@ -119,7 +119,8 @@ class CD(Media):
 class JeuPlateau(models.Model):
     name=models.CharField(max_length=200)
     creators=models.CharField(max_length=200)
-    objects = models.Manager()
+    is_visible = models.BooleanField(default=True)
+    available = models.BooleanField(default=False)
 
     def __str__(self):
         return self.name
