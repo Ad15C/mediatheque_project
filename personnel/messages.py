@@ -1,6 +1,7 @@
 # messages.py
-
-BORROW_BLOCKED = "Cet utilisateur est bloqué."
-BORROW_TOO_MANY = "Vous avez déjà {current_borrows} emprunts. La limite est de {limit} emprunts."
+BORROW_BLOCKED = "Votre compte est bloqué. Vous ne pouvez pas emprunter de médias."
+BORROW_TOO_MANY = "Vous avez déjà atteint votre limite d'emprunts."
 MEDIA_NOT_AVAILABLE = "Ce média n'est pas disponible."
-MEMBER_HAS_DELAY = "Vous avez un emprunt en retard."
+MEMBER_HAS_DELAY = "Vous avez des emprunts en retard. Veuillez les retourner avant d'en emprunter d'autres."
+BORROW_MESSAGE = "Aucune règle d'emprunt active n'est définie."
+BORROW_SUCCESS = "Emprunt validé avec succès."

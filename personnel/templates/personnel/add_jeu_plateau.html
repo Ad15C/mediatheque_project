@@ -1,0 +1,12 @@
+{% extends 'personnel/base.html' %}
+
+{% block title %}Accueil{% endblock %}
+
+{% block content %}
+<!-- add_jeu_plateau.html -->
+<form method="POST">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Ajouter</button>
+</form>
+{% endblock %}

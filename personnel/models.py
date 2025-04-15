@@ -2,18 +2,20 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from datetime import timedelta
-from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
-from django.db.models.manager import Manager
 from django.contrib.auth.models import User
-from django.contrib.contenttypes.fields import GenericRelation
 from .messages import BORROW_BLOCKED, BORROW_TOO_MANY, MEDIA_NOT_AVAILABLE, MEMBER_HAS_DELAY
+from django.core.cache import cache
 
+
+def get_default_due_date():
+    return timezone.now() + timedelta(days=7)
 
 
 # Modèle Membre
 class Member(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="member")
     name = models.CharField(max_length=100)
     email = models.EmailField()
     date_of_birth = models.DateField(null=True, blank=True)
@@ -22,57 +24,75 @@ class Member(models.Model):
     blocked = models.BooleanField(default=False)
     objects = models.Manager()
 
-
     def __str__(self):
         return self.name
 
-
+    @property
     def currently_borrowed(self):
-        """Retourne le nombre d'emprunts non rendus"""
-        return Borrow.objects.filter(borrower=self, date_effective_return__isnull=True ).count()
+        cache_key = f"member_{self.id}_borrow_count"
+        borrow_count = cache.get(cache_key)
 
+        if borrow_count is None:
+            borrow_count = Borrow.objects.filter(borrower=self, date_effective_return__isnull=True).count()
+            cache.set(cache_key, borrow_count, timeout=60 * 15)
 
-    def got_delayed(self):
-        """Vérifie si l'utilisateur a un emprunt en retard"""
-        return Borrow.objects.filter(
-            borrower=self,
-            date_effective_return__isnull=True,
-            date_due__lt=timezone.now()
-        ).exists()
+        return borrow_count
+
+    def has_borrowing_limit_exceeded(self):
+        limit = BorrowingRule.get_active_limit()
+        return self.currently_borrowed >= limit
+
+    def is_overdue(self):
+        cache_key = f"member_{self.id}_overdue"
+        overdue = cache.get(cache_key)
+
+        if overdue is None:
+            overdue = Borrow.objects.filter(
+                borrower=self,
+                date_effective_return__isnull=True,
+                date_due__lt=timezone.now()
+            ).exists()
+            cache.set(cache_key, overdue, timeout=60 * 15)
+
+        return overdue
 
     @classmethod
-    def check_borrow_criteria(cls, member, selected_media):
+    def get_active_limit(cls):
+        rule = BorrowingRule.objects.filter(active=True).first()
+        return rule.value if rule else 3
 
-        if member.blocked:
-            return True, BORROW_BLOCKED
+    def check_borrow_criteria(self, selected_media):
+        """Vérifie les critères d'emprunt du membre."""
+        # 1. Le membre est-il bloqué ?
+        if self.blocked:
+            return False, BORROW_BLOCKED
 
-        if member.got_delayed():
-            return True, MEMBER_HAS_DELAY
+        # 2. Le membre a-t-il des emprunts en retard ?
+        if self.is_overdue():
+            return False, MEMBER_HAS_DELAY
 
-        limite = BorrowingRule.get_active_limit()
-        if member.currently_borrowed() >= limite:
-            return True, BORROW_TOO_MANY.format(current_borrows=member.currently_borrowed(), limit=limite)
-
+        # 3. Le média est-il disponible ?
         if not selected_media.available:
-            return True, MEDIA_NOT_AVAILABLE
+            return False, MEDIA_NOT_AVAILABLE
 
-        if selected_media.media_type == 'jeu_plateau':
-            return True, "Les jeux de plateau ne sont pas disponibles à l'emprunt."
+        # 4. Le membre a-t-il atteint la limite d'emprunts ?
+        limit = BorrowingRule.get_active_limit()
+        if self.currently_borrowed >= limit:
+            return False, BORROW_TOO_MANY.format(current_borrows=self.currently_borrowed, limit=limit)
 
-        if selected_media.media_type != 'jeu_plateau' and (selected_media.date_due - timezone.now()).days > 7:
-            return True, "La durée maximale d'emprunt est de 7 jours."
+        # 5. Les jeux de plateau ne peuvent pas être empruntés.
+        if isinstance(selected_media, JeuPlateau):  # Cette condition doit être enlevée si JeuPlateau n'est pas importé/utilisé
+            return False, "Les jeux de plateau ne peuvent pas être empruntés."
 
-        return False, None
-
-
-# Fonction pour fixer la date de retour par défaut (+7 jours)
-def default_due_date():
-    return timezone.now() + timedelta(days=7)
+        return True, None
 
 
+# Fonction pour récupérer ContentType à la volée
+def get_default_content_type():
+    return ContentType.objects.get_for_model(Media).id
 
 
-#Modèle Media
+# Modèle Media
 class Media(models.Model):
     TYPE_CHOICES = [
         ('livre', 'Livre'),
@@ -85,37 +105,50 @@ class Media(models.Model):
     available = models.BooleanField(default=True)
     media_type = models.CharField(max_length=50, choices=TYPE_CHOICES)
     borrows = GenericRelation('Borrow', related_query_name='media')
+
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE,
+        default=get_default_content_type  # Remplacer ici par la fonction définie ci-dessus
+    )
+
+    object_id = models.PositiveIntegerField(null=True)
+    content_object = GenericForeignKey('content_type', 'object_id')
+
     objects = models.Manager()
 
-
     def __str__(self):
-        return f"{self.name} ({self.get_media_type_display()})"  # type: ignore[attr-defined]
+        return f"{self.name} ({self.get_media_type_display()})"
 
 
+# Modèle Livre
 class Livre(Media):
-    author=models.CharField(max_length=200)
+    author = models.CharField(max_length=200)
 
     def save(self, *args, **kwargs):
         self.media_type = 'livre'
         super().save(*args, **kwargs)
 
 
+# Modèle DVD
 class DVD(Media):
-    producer=models.CharField(max_length=200)
+    producer = models.CharField(max_length=200)
 
     def save(self, *args, **kwargs):
         self.media_type = 'dvd'
         super().save(*args, **kwargs)
 
 
+# Modèle CD
 class CD(Media):
-    artist=models.CharField(max_length=200)
+    artist = models.CharField(max_length=200)
 
     def save(self, *args, **kwargs):
         self.media_type = 'cd'
         super().save(*args, **kwargs)
 
 
+# Modèle Jeu de plateau
 class JeuPlateau(models.Model):
     name = models.CharField(max_length=100)
     creators = models.CharField(max_length=100)
@@ -125,24 +158,26 @@ class JeuPlateau(models.Model):
     def __str__(self):
         return self.name
 
+    def is_available(self):
+        return self.available
+
+    def toggle_availability(self):
+        self.available = not self.available
+        self.save()
 
 
 # Représente un emprunt concret effectué par un membre
 class Borrow(models.Model):
-    borrower = models.ForeignKey(Member, on_delete=models.CASCADE)  # L'emprunteur (Member)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, default=1)
-    date_borrowed = models.DateField(default=timezone.now)  # Date de l'emprunt
-    date_due = models.DateTimeField(default=default_due_date)  # Date de retour prévue
-    date_effective_return = models.DateField(null=True, blank=True)  # Date de retour réelle
+    borrower = models.ForeignKey(Member, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    date_borrowed = models.DateField(default=timezone.now)
+    date_due = models.DateTimeField(default=get_default_due_date)
+    date_effective_return = models.DateField(null=True, blank=True)
 
-
-    """  Champs pour la relation générique"""
-    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)  # Type de l'objet emprunté
-    object_id = models.PositiveIntegerField()  # ID de l'objet emprunté
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
     media = GenericForeignKey('content_type', 'object_id')
 
-
-    """ Un manager pour faciliter les requêtes si nécessaire"""
     objects = models.Manager()
 
     def __str__(self):
@@ -151,68 +186,43 @@ class Borrow(models.Model):
     def clean(self):
         errors = []
 
-        if not self.borrower:
-            errors.append("Un emprunteur est requis.")
+        # Vérification des critères d'emprunt du membre
+        valid, error_message = self.borrower.check_borrow_criteria(self.media)
+        if not valid:
+            errors.append(error_message)
 
-        if self.borrower.blocked:
-            errors.append(BORROW_BLOCKED)
-
-        if self.borrower.got_delayed():
-            errors.append(MEMBER_HAS_DELAY)
-
-        if self.return_date and (self.return_date - self.date_borrowed).days > 7:
-            raise ValidationError("La durée d'emprunt ne peut excéder 7 jours.")
-
-        limite = BorrowingRule.get_active_limit()
-        if self.borrower.currently_borrowed() >= limite:
-            errors.append(BORROW_TOO_MANY.format(current_borrows=self.borrower.currently_borrowed(), limit=limite))
-
+        # Vérification si c'est un jeu de plateau, qui ne peut pas être emprunté
         if isinstance(self.media, JeuPlateau):
             errors.append("Les jeux de plateau ne peuvent pas être empruntés.")
 
-        if not self.media or not self.media.available:
-            errors.append(MEDIA_NOT_AVAILABLE)
-
+        # Si des erreurs existent, les lever
         if errors:
             raise ValidationError(errors)
 
-
-    """ Gère l'emprunt de manière sécurisée """
     def confirm_borrow(self):
-        """Effectue la vérification et marque le média comme emprunté."""
-        if not self.media.available:
-            raise ValidationError("Le média n'est plus disponible.")
+        if self.media and self.media.available:
+            self.media.available = False
+            self.user = self.borrower.user
+            self.media.save()
+            self.save()
 
-        if Borrow.objects.filter(media=self.media, date_effective_return__isnull=True).exists():
-            raise ValidationError("Le média est déjà emprunté.")
+            # Invalidation du cache du nombre d'emprunts du membre
+            cache.delete(f"member_{self.borrower.id}_borrow_count")
 
-        self.media.available = False
-        self.media.save()
-        self.save()
-
-
-    """ Vérifie si l'emprunteur est en retard """
     def is_late(self):
         return self.date_effective_return is None and self.date_due is not None and timezone.now() > self.date_due
 
-
-    """ Rendre un emprunt """
-    def return_media(self):
-        """ Vérifier si le média a déjà été retourné"""
+    def mark_as_returned(self):
         if self.date_effective_return:
             raise ValidationError("Ce média a déjà été retourné.")
 
-        """ Marquer la date de retour"""
         self.date_effective_return = timezone.now()
-
-        """ Rendre le média disponible à nouveau"""
-        if hasattr(self.media, 'available'):
-            self.media.available = True
-            self.media.save()
-
+        self.media.available = True
+        self.media.save()
         self.save()
 
-
+        # Invalidation du cache du nombre d'emprunts du membre
+        cache.delete(f"member_{self.borrower.id}_borrow_count")
 
 
 # Représente une règle générale
@@ -221,16 +231,18 @@ class BorrowingRule(models.Model):
     description = models.CharField(max_length=255)
     value = models.IntegerField(null=True, blank=True)
     active = models.BooleanField(default=True)
-    objects: Manager['BorrowingRule'] = models.Manager()
+    limit = models.PositiveIntegerField(default=3)
+    objects = models.Manager()
 
     def __str__(self):
         return self.description
 
-
     @classmethod
     def get_active_limit(cls):
-        """Retourne la valeur de la règle active ou 3 si aucune n'est définie."""
+        """
+        Retourne la limite d'emprunts active si elle existe, sinon retourne 3 par défaut.
+        """
         rule = cls.objects.filter(active=True).first()
         return rule.value if rule else 3
-
+    pass
 
