@@ -7,31 +7,38 @@
 </head>
 <body>
     <nav>
-        <!-- Partie pour les médias -->
-        <a href="{% url 'media_list' %}">Liste des médias</a>
-        <a href="{% url 'borrowing_media' %}">Emprunter un média</a>
-        <a href="{% url 'choose_borrow' %}">Retourner un média</a>
-        <a href="{% url 'add_media' %}">Ajouter un média</a>
-<hr>
-        <!-- Partie pour les membres -->
-        <a href="{% url 'member_list' %}">Liste des membres</a>
-        <a href="{% url 'add_member' %}">Ajouter un membre</a>
+        <h3>Médias</h3>
+            <ul>
+                <li><a href="{% url 'media_list' %}">Liste des médias</a></li>
+                <li><a href="{% url 'borrowing_media' %}">Emprunter un média</a></li>
+                <li><a href="{% url 'choose_borrow' %}">Retourner un média</a></li>
+                <li><a href="{% url 'add_media' %}">Ajouter un média</a></li>
+                <li><a href="{% url 'add_jeu_plateau' %}">Ajouter un jeu de plateau</a></li>
+            </ul>
 
-        <!-- Retour à la page d'accueil -->
-        <a href="{% url 'index' %}">Retour à l'accueil</a>
+        <h3>Membres</h3>
+            <ul>
+                <li><a href="{% url 'member_list' %}">Liste des membres</a></li>
+                <li><a href="{% url 'add_member' %}">Ajouter un membre</a></li>
+                <li><a href="{% url 'check_if_member_is_overdue' %}">Membres en retard</a></li>
+            </ul>
+
+        <hr>
+        <a href="{% url 'index' %}">Accueil</a>
     </nav>
+
     <div>
-	    {% if user.is_authenticated %}
-        <p>Connecté en tant que {{ user.username }} |
-            <form action="{% url 'logout' %}" method="post">
+        {% if user.is_authenticated %}
+            <p>Connecté en tant que {{ user.username }}</p>
+            <form action="{% url 'logout' %}" method="post" style="display:inline;">
                 {% csrf_token %}
                 <button type="submit">Se déconnecter</button>
             </form>
-        </p>
         {% else %}
-        <p><a href="{% url 'login' %}">Se connecter</a></p>
+            <p><a href="{% url 'login' %}">Se connecter</a></p>
         {% endif %}
     </div>
+
     {% if messages %}
     <div class="messages">
         {% for message in messages %}
