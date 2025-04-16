@@ -11,6 +11,8 @@ from .services.borrow_service import borrow_media, return_media
 from .services.borrowing_rules_service import get_active_borrowing_rules
 from .services.member_service import add_member, update_member as update_member_service
 from personnel.services.member_service import delete_member
+from django.utils import timezone
+
 
 
 class CustomLoginView(LoginView):
@@ -251,20 +253,21 @@ def choose_borrow_to_return_view(request):
         raise PermissionDenied("Vous n'avez pas les droits nécessaires.")
 
     try:
-        member = request.user.member
+        member = request.user.member  # On suppose qu'un utilisateur a un attribut `member`
     except Member.DoesNotExist:
         return redirect('member_error')
+
+    # Appel à la fonction de filtrage avec l'objet `member`
     borrows = get_borrows_to_return(member)
+
     return render(request, 'personnel/returning_media.html', {'borrows': borrows})
 
 
-#Filtre les emprunts d'une membre pour retourner ceux qui n'ont pas été retournés
+# Filtre les emprunts d'un membre pour retourner ceux qui n'ont pas été retournés
 @login_required
 @user_passes_test(is_staff, login_url='no_permission')
 def get_borrows_to_return(member):
-    if not request.user.is_staff:  # Ceci n'est plus nécessaire
-        raise PermissionDenied("Vous n'avez pas les droits nécessaires.")
-
+    # Ici, tu n'as plus besoin de `request.user.is_staff`, car tu n'as pas accès à `request`
     return Borrow.objects.filter(borrower=member, date_effective_return__isnull=True)
 
 
@@ -362,17 +365,16 @@ def delete_member_view(request, pk):
     return redirect('member_list')  # Rediriger vers la liste des membres
 
 
-# Vérification si un membre a du retard
 @login_required
 @user_passes_test(is_staff, login_url='no_permission')
 def members_overdue(request):
-    # Filtrer les membres qui ont des emprunts en retard
     overdue_members = Member.objects.filter(
-        borrow__return_date__lt=timezone.now(),
-        borrow__returned=False
+        borrow__date_due__lt=timezone.now(),   # <-- champ correct
+        borrow__date_effective_return__isnull=True
     ).distinct()
 
     return render(request, 'personnel/members_overdue.html', {'overdue_members': overdue_members})
+
 
 def member_error():
     return render(request, 'personnel/member_error.html')

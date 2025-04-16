@@ -1,0 +1,29 @@
+{% extends 'personnel/base.html' %}
+
+{% block title %}Membres en Retard{% endblock %}
+
+{% block content %}
+<h1>Membres avec Emprunts en Retard</h1>
+
+{% if overdue_members %}
+    <ul>
+        {% for member in overdue_members %}
+            <li>
+                <strong>{{ member.name }}</strong> - {{ member.email }}
+                <ul>
+                    {% for borrow in member.borrow_set.all %}
+                        {% if not borrow.date_effective_return and borrow.date_due < now %}
+                            <li>
+                                Média : {{ borrow.media }}<br>
+                                Date limite : {{ borrow.date_due|date:"d/m/Y H:i" }}
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                </ul>
+            </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>Aucun membre n'a d'emprunts en retard.</p>
+{% endif %}
+{% endblock %}
