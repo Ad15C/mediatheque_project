@@ -6,50 +6,86 @@
 <h2>Ajouter un média : </h2>
 
 <form method="post">
-{% csrf_token %}
-{{ form.as_p }}
+    {% csrf_token %}
+    {{ form.as_p }}
 
-<!-- Affichage des erreurs de chaque champ -->
-{% for field in form %}
-{% if field.errors %}
-    <div class="error">
-        {% for error in field.errors %}
-            <p>{{ error }}</p>
-        {% endfor %}
-    </div>
-{% endif %}
-{% endfor %}
+    <!-- Affichage des erreurs de chaque champ -->
+    {% for field in form %}
+        {% if field.errors %}
+            <div class="error">
+                {% for error in field.errors %}
+                    <p>{{ error }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endfor %}
 
-<div>
-    <label for="id_media_type">Catégorie de média :</label>
-    <select name="media_type" id="id_media_type" onchange="toggleFields()">
-        <option value="livre" {% if form.media_type.value == 'livre' %}selected{% endif %}>Livre</option>
-        <option value="dvd" {% if form.media_type.value == 'dvd' %}selected{% endif %}>DVD</option>
-        <option value="cd" {% if form.media_type.value == 'cd' %}selected{% endif %}>CD</option>
-        <option value="jeu_plateau" {% if form.media_type.value == 'jeu_plateau' %}selected{% endif %}>Jeu de Plateau</option>
-    </select>
-</div>
+    <div>
+        <label for="id_media_type">Catégorie de média :</label>
+        <select name="media_type" id="id_media_type" onchange="toggleFields()">
+            <option value="livre" {% if form.media_type.value == 'livre' or 'livre' == request.POST.media_type %}selected{% endif %}>Livre</option>
+            <option value="dvd" {% if form.media_type.value == 'dvd' or 'dvd' == request.POST.media_type %}selected{% endif %}>DVD</option>
+            <option value="cd" {% if form.media_type.value == 'cd' or 'cd' == request.POST.media_type %}selected{% endif %}>CD</option>
+            <option value="jeu_plateau" {% if form.media_type.value == 'jeu_plateau' or 'jeu_plateau' == request.POST.media_type %}selected{% endif %}>Jeu de Plateau</option>
+        </select>
+    </div>
 
-<div class="dynamic-fields">
-    <div id="author-field" class="field" {% if form.media_type.value != 'livre' %}style="display:none;"{% endif %}>
-        <label for="id_author">Auteur</label>
-        <input type="text" name="author" id="id_author" value="{{ form.author.value }}">
-    </div>
-    <div id="producer-field" class="field" {% if form.media_type.value != 'dvd' %}style="display:none;"{% endif %}>
-        <label for="id_producer">Producteur</label>
-        <input type="text" name="producer" id="id_producer" value="{{ form.producer.value }}">
-    </div>
-    <div id="artist-field" class="field" {% if form.media_type.value != 'cd' %}style="display:none;"{% endif %}>
-        <label for="id_artist">Artiste</label>
-        <input type="text" name="artist" id="id_artist" value="{{ form.artist.value }}">
-    </div>
-    <div id="creators-field" class="field" {% if form.media_type.value != 'jeu_plateau' %}style="display:none;"{% endif %}>
-        <label for="id_creators">Créateurs</label>
-        <input type="text" name="creators" id="id_creators" value="{{ form.creators.value }}">
-    </div>
-</div>
+    <div class="dynamic-fields">
+        <!-- Champ pour "Auteur" (livre) -->
+        <div id="author-field" class="field" {% if form.media_type.value != 'livre' and not request.POST.media_type == 'livre' %}style="display:none;"{% endif %}>
+            <label for="id_author">Auteur</label>
+            <input type="text" name="author" id="id_author" value="{{ form.author.value }}">
+            {% if form.author.errors %}
+                <div class="error">
+                    {% for error in form.author.errors %}
+                        <p>{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
 
-<button type="submit">Enregistrer</button>
+        <!-- Champ pour "Producteur" (DVD) -->
+        <div id="producer-field" class="field" {% if form.media_type.value != 'dvd' and not request.POST.media_type == 'dvd' %}style="display:none;"{% endif %}>
+            <label for="id_producer">Producteur</label>
+            <input type="text" name="producer" id="id_producer" value="{{ form.producer.value }}">
+            {% if form.producer.errors %}
+                <div class="error">
+                    {% for error in form.producer.errors %}
+                        <p>{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Champ pour "Artiste" (CD) -->
+        <div id="artist-field" class="field" {% if form.media_type.value != 'cd' and not request.POST.media_type == 'cd' %}style="display:none;"{% endif %}>
+            <label for="id_artist">Artiste</label>
+            <input type="text" name="artist" id="id_artist" value="{{ form.artist.value }}">
+            {% if form.artist.errors %}
+                <div class="error">
+                    {% for error in form.artist.errors %}
+                        <p>{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Champ pour "Créateurs" (Jeu de Plateau) -->
+        <div id="creators-field" class="field" {% if form.media_type.value != 'jeu_plateau' and not request.POST.media_type == 'jeu_plateau' %}style="display:none;"{% endif %}>
+            <label for="id_creators">Créateurs</label>
+            <input type="text" name="creators" id="id_creators" value="{{ form.creators.value }}">
+            {% if form.creators.errors %}
+                <div class="error">
+                    {% for error in form.creators.errors %}
+                        <p>{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+    </div>
+
+    <button type="submit">Enregistrer</button>
 </form>
 
 <script>
@@ -63,4 +99,5 @@
 
     window.onload = toggleFields;
 </script>
+
 {% endblock %}

@@ -3,19 +3,38 @@
 {% block title %}Emprunter un média{% endblock %}
 
 {% block content %}
-    <h2> Emprunter un média : </h2>
+    <h2>Jeux de plateau disponibles à la consultation</h2>
+    <ul>
+        {% for game in board_games %}
+            <li>{{ game.name }} (Créateur : {{ game.creators }})</li>
+        {% empty %}
+            <li>Aucun jeu de plateau pour l’instant.</li>
+        {% endfor %}
+    </ul>
+
+    <hr>
+
+    <h2>Autres médias disponibles à l'emprunt</h2>
+    <ul>
+        {% for media in available_media %}
+            <li>{{ media.name }} ({{ media.get_media_type_display }})</li>
+        {% empty %}
+            <li>Aucun média disponible pour l’emprunt.</li>
+        {% endfor %}
+    </ul>
+
+    <hr>
 
     <!-- Affichage des messages -->
     {% if messages %}
-    <div class="messages">
-        {% for message in messages %}
-            <div class="message {{ message.tags }}">
-                {{ message }}
-            </div>
-        {% endfor %}
-    </div>
-{% endif %}
-
+        <div class="messages">
+            {% for message in messages %}
+                <div class="message {{ message.tags }}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
 
     <!-- Formulaire pour sélectionner le média -->
     <form method="post">
@@ -50,17 +69,4 @@
     </form>
 
     {% if borrow_success %}
-        <p style="color: green; font-weight: bold;">L'emprunt a été effectué avec succès pour le membre {{ member.user.username }}!</p>
-    {% endif %}
-
-    <hr>
-    <!-- Affichage des règles d'emprunt uniquement si l'emprunt n'est pas encore effectué et si l'utilisateur ne les a pas déjà vues -->
-    {% if not borrow_success and not has_seen_rules %}
-        <h4>Règles d'emprunt :</h4>
-        <ul>
-            {% for rule in rules %}
-                <li>{{ rule.description }} (Valeur : {{ rule.value }})</li>
-            {% endfor %}
-        </ul>
-    {% endif %}
-{% endblock %}
+        <p style="color: green; font-weight: bold;">L'emprunt a été effectué avec succès pour le

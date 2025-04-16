@@ -1,6 +1,7 @@
 from django import forms
 from django.core.exceptions import ValidationError
 from django.core.validators import EmailValidator
+import re
 from .models import Media, Member, JeuPlateau, Livre, DVD, CD
 
 
@@ -14,18 +15,23 @@ class MediaForm(forms.ModelForm):
     author = forms.CharField(required=False, max_length=200)
     producer = forms.CharField(required=False, max_length=200)
     artist = forms.CharField(required=False, max_length=200)
+    creators = forms.CharField(required=False, max_length=200)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Si le formulaire a déjà un media_type sélectionné, utilisez-le
+
+        # Récupérer le type de média à partir des données soumises ou de l'initialisation
         media_type = self.data.get('media_type', self.initial.get('media_type', 'livre'))
 
+        # Ajuster les champs en fonction du type de média
         if media_type == 'livre':
-            self.fields['author'] = forms.CharField(max_length=200, required=True)
+            self.fields['author'].required = True
         elif media_type == 'dvd':
-            self.fields['producer'] = forms.CharField(max_length=200, required=True)
+            self.fields['producer'].required = True
         elif media_type == 'cd':
-            self.fields['artist'] = forms.CharField(max_length=200, required=True)
+            self.fields['artist'].required = True
+        elif media_type == 'jeu_plateau':
+            self.fields['creators'].required = True
 
     def clean(self):
         cleaned_data = super().clean()
@@ -39,17 +45,11 @@ class MediaForm(forms.ModelForm):
                 raise forms.ValidationError('Le producteur est requis pour un DVD.')
             elif media_type == 'cd' and not cleaned_data.get('artist'):
                 raise forms.ValidationError('L\'artiste est requis pour un CD.')
+            elif media_type == 'jeu_plateau' and not cleaned_data.get('creators'):
+                raise forms.ValidationError('Les créateurs sont requis pour un jeu de plateau.')
 
         return cleaned_data
 
-
-class JeuPlateauForm(forms.ModelForm):
-    class Meta:
-        model = JeuPlateau
-        fields = ['name', 'creators', 'is_visible', 'available']
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
 # MemberForm avec validation des emails et gestion des mots de passe
 class MemberForm(forms.ModelForm):
@@ -67,7 +67,7 @@ class MemberForm(forms.ModelForm):
     def clean_email(self):
         email = self.cleaned_data.get('email')
         if Member.objects.filter(email=email).exists():
-            raise ValidationError('Un membre avec cet email existe déjà.')
+            raise ValidationError('Un membre avec cet email existe déjà. Veuillez en choisir un autre.')
         return email
 
     def clean(self):
@@ -79,8 +79,14 @@ class MemberForm(forms.ModelForm):
         if password != password_confirm:
             raise ValidationError('Les mots de passe ne correspondent pas.')
 
-        # Vérification de la force du mot de passe (par exemple, longueur minimale)
+        # Vérification de la force du mot de passe (longueur minimale, majuscules, chiffres, etc.)
         if len(password) < 8:
             raise ValidationError('Le mot de passe doit contenir au moins 8 caractères.')
+
+        if not re.search(r'[A-Z]', password):  # Vérifie la présence d'une majuscule
+            raise ValidationError('Le mot de passe doit contenir au moins une lettre majuscule.')
+
+        if not re.search(r'[0-9]', password):  # Vérifie la présence d'un chiffre
+            raise ValidationError('Le mot de passe doit contenir au moins un chiffre.')
 
         return cleaned_data

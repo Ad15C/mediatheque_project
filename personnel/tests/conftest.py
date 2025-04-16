@@ -1,19 +1,33 @@
 import pytest
+import uuid
 from django.db import connection
 from django.contrib.auth.models import User
 from personnel.models import Member
+from django.db import transaction
 
-# Vider la base de données avant chaque test (optionnel, si vous souhaitez le faire)
 @pytest.fixture(autouse=True)
 def clear_db():
-    cursor = connection.cursor()
-    cursor.execute('DELETE FROM personnel_member;')  # Supprimer les membres
-    cursor.execute('DELETE FROM auth_user;')         # Supprimer les utilisateurs
+    """Effacer les enregistrements dans la base de données avant chaque test."""
+    # Supprimer les membres et les utilisateurs avant chaque test
+    Member.objects.all().delete()
+    User.objects.all().delete()
     yield
 
-# Créer un utilisateur et un membre unique à chaque test (optionnel)
+@pytest.fixture(autouse=True)
+def cleanup_after_tests():
+    """Nettoyage automatique après chaque test, avec gestion des transactions"""
+    with transaction.atomic():
+        yield
+        # Supprimer tous les membres et utilisateurs après chaque test
+        Member.objects.all().delete()
+        User.objects.all().delete()
+
+
+# Créer un utilisateur unique et un membre associé à chaque test
 @pytest.fixture
 def create_user_and_member():
-    user = User.objects.create(username='testuser', password='password')
+    # Utilisation d'un uuid pour garantir l'unicité
+    unique_username = f"user_{uuid.uuid4().hex[:8]}"  # Crée un nom d'utilisateur unique
+    user = User.objects.create(username=unique_username, password='password')
     member = Member.objects.create(user=user)
     return user, member

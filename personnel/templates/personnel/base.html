@@ -11,16 +11,15 @@
             <ul>
                 <li><a href="{% url 'media_list' %}">Liste des médias</a></li>
                 <li><a href="{% url 'borrowing_media' %}">Emprunter un média</a></li>
-                <li><a href="{% url 'choose_borrow' %}">Retourner un média</a></li>
+                <li><a href="{% url 'choose_borrow_to_return_view' %}">Retourner un média</a></li>
                 <li><a href="{% url 'add_media' %}">Ajouter un média</a></li>
-                <li><a href="{% url 'add_jeu_plateau' %}">Ajouter un jeu de plateau</a></li>
             </ul>
 
         <h3>Membres</h3>
             <ul>
                 <li><a href="{% url 'member_list' %}">Liste des membres</a></li>
                 <li><a href="{% url 'add_member' %}">Ajouter un membre</a></li>
-                <li><a href="{% url 'check_if_member_is_overdue' %}">Membres en retard</a></li>
+                <li><a href="{% url 'members_overdue' %}">Membres en retard</a></li>
             </ul>
 
         <hr>

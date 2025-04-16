@@ -69,7 +69,13 @@ class Member(models.Model):
 
         # 2. Le membre a-t-il des emprunts en retard ?
         if self.is_overdue():
-            return False, MEMBER_HAS_DELAY
+            overdue_borrows = Borrow.objects.filter(
+                borrower=self,
+                date_effective_return__isnull=True,
+                date_due__lt=timezone.now()
+            )
+            overdue_details = "\n".join([f"{borrow.media} - Due: {borrow.date_due}" for borrow in overdue_borrows])
+            return False, f"{MEMBER_HAS_DELAY}\n\nEmprunts en retard :\n{overdue_details}"
 
         # 3. Le média est-il disponible ?
         if not selected_media.available:
@@ -80,8 +86,8 @@ class Member(models.Model):
         if self.currently_borrowed >= limit:
             return False, BORROW_TOO_MANY.format(current_borrows=self.currently_borrowed, limit=limit)
 
-        # 5. Les jeux de plateau ne peuvent pas être empruntés.
-        if isinstance(selected_media, JeuPlateau):  # Cette condition doit être enlevée si JeuPlateau n'est pas importé/utilisé
+        # 5. Vérification spécifique du type de média
+        if isinstance(selected_media, JeuPlateau):
             return False, "Les jeux de plateau ne peuvent pas être empruntés."
 
         return True, None
@@ -109,7 +115,7 @@ class Media(models.Model):
     content_type = models.ForeignKey(
         ContentType,
         on_delete=models.CASCADE,
-        default=get_default_content_type  # Remplacer ici par la fonction définie ci-dessus
+        default=get_default_content_type
     )
 
     object_id = models.PositiveIntegerField(null=True)
@@ -154,6 +160,7 @@ class JeuPlateau(models.Model):
     creators = models.CharField(max_length=100)
     is_visible = models.BooleanField(default=True)
     available = models.BooleanField(default=False)
+    game_type = models.CharField(max_length=50)
 
     def __str__(self):
         return self.name

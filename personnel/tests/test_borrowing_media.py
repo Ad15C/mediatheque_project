@@ -1,213 +1,247 @@
-from django.test import TestCase
+import pytest
 from django.urls import reverse
 from django.contrib.auth.models import User
 from django.contrib.messages import get_messages
-from django.contrib.contenttypes.models import ContentType
+from unittest.mock import patch
 from personnel.models import Member, Media, Borrow, BorrowingRule
-from personnel.messages import BORROW_BLOCKED, BORROW_TOO_MANY, MEDIA_NOT_AVAILABLE, DELAYED_BORROW
-from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseBadRequest
-
-# Fonctions de validation des critères d'emprunt
-def is_blocked(member):
-    return member.blocked
-
-def has_delayed_borrow(member):
-    return member.got_delayed()
-
-def is_media_available(media):
-    return media.available
-
-def has_reached_borrow_limit(member):
-    limite = BorrowingRule.get_active_limit()
-    return member.currently_borrowed() >= limite
-
-def check_borrow_criteria(member, selected_media):
-    if is_blocked(member):
-        return False, BORROW_BLOCKED
-
-    if has_delayed_borrow(member):
-        return False, DELAYED_BORROW
-
-    if not is_media_available(selected_media):
-        return False, MEDIA_NOT_AVAILABLE
-
-    if has_reached_borrow_limit(member):
-        return False, BORROW_TOO_MANY
-
-    return True, None
+from personnel.messages import GAME_NOT_BORROWABLE, BORROW_BLOCKED, BORROW_TOO_MANY, MEDIA_NOT_AVAILABLE, BORROW_SUCCESS, GAME_NOT_BORROWABLE
 
 
-class BorrowingMediaTestCase(TestCase):
 
-    def setUp(self):
-        """Prépare les données pour les tests"""
-        self.user, created = User.objects.get_or_create(username="testuser", defaults={'password': 'password'})
-        self.member, created = Member.objects.get_or_create(user=self.user, defaults={'blocked': False})
-        self.livre = Media.objects.create(name="Livre de test", available=True, media_type="livre")
-        self.dvd = Media.objects.create(name="DVD de test", available=True, media_type="dvd")
-        self.cd = Media.objects.create(name="Test CD", available=True, media_type="cd")
-        self.jeuplateau = Media.objects.create(name="Test Jeu de Plateau", available=True, media_type="Jeu de Plateau")
+@pytest.fixture
+def user(db):
+    user, created = User.objects.get_or_create(username="testuser", password="password")
+    return user
 
-    def login_user(self):
-        """Connexion de l'utilisateur pour les tests"""
-        self.client.login(username="testuser", password="password")
-
-    def tearDown(self):
-        """Supprime les données après chaque test"""
-        Borrow.objects.all().delete()
-        Member.objects.all().delete()
-        Media.objects.all().delete()
-        User.objects.all().delete()
-
-    def test_borrow_valid_media(self):
-        """Test emprunt d'un média valide"""
-        self.login_user()
-        response = self.client.post(reverse('borrowing_media'), {'media_id': self.livre.id})
-
-        # Vérifier que l'emprunt a été créé
-        borrow = Borrow.objects.filter(borrower=self.member, object_id=self.livre.id).exists()
-        self.assertTrue(borrow)
-
-        # Vérifier que le message de succès est affiché
-        messages = list(get_messages(response.wsgi_request))
-        self.assertEqual(str(messages[0]), f"L'emprunt de {self.livre.name} a été effectué avec succès.")
-
-    def test_borrowing_media_when_not_logged_in(self):
-        """Test que l'utilisateur non connecté ne peut pas emprunter de média"""
-        response = self.client.get(reverse('borrowing_media'))
-        self.assertRedirects(response, '/login/')
-
-    def test_borrow_media_when_blocked(self):
-        """Test emprunt lorsque le membre est bloqué"""
-        self.member.blocked = True
-        self.member.save()
-        self.login_user()
-
-        response = self.client.post(reverse('borrowing_media'), {'media_id': self.livre.id})
-
-        # Vérifier que le message d'erreur est affiché
-        messages = list(get_messages(response.wsgi_request))
-        self.assertEqual(str(messages[0]), BORROW_BLOCKED)
-
-        # Vérifier qu'aucun emprunt n'est créé
-        borrow = Borrow.objects.filter(borrower=self.member, object_id=self.livre.id).exists()
-        self.assertFalse(borrow)
-
-    def test_borrow_media_not_available(self):
-        """Test emprunt d'un média non disponible"""
-        # Créer un emprunt et rendre le média non disponible
-        self.livre.available = False
-        self.livre.save()
-
-        self.login_user()
-        response = self.client.post(reverse('borrowing_media'), {'media_id': self.livre.id})
-
-        # Vérifier que l'emprunt n'a pas été créé
-        borrow = Borrow.objects.filter(borrower=self.member, object_id=self.livre.id).exists()
-        self.assertFalse(borrow)
-
-        # Vérifier que le message d'erreur est affiché
-        messages = list(get_messages(response.wsgi_request))
-        self.assertEqual(str(messages[0]), MEDIA_NOT_AVAILABLE)
-
-    def test_borrow_media_when_limit_reached(self):
-        """Test emprunt lorsque la limite d'emprunts est atteinte"""
-        BorrowingRule.objects.create(active=True, limit=1)
-
-        Borrow.objects.create(borrower=self.member, content_type=self.livre.content_type, object_id=self.livre.id)
-        self.login_user()
-
-        response = self.client.post(reverse('borrowing_media'), {'media_id': self.dvd.id})
-
-        # Vérifier que le message d'erreur est affiché
-        messages = list(get_messages(response.wsgi_request))
-        self.assertEqual(str(messages[0]), BORROW_TOO_MANY)
-
-    def test_borrow_without_selecting_media(self):
-        """Test si l'utilisateur tente de soumettre sans sélectionner de média"""
-        self.login_user()
-        response = self.client.post(reverse('borrowing_media'), {})
-
-        # Vérifier que le message d'erreur est affiché
-        messages = list(get_messages(response.wsgi_request))
-        self.assertEqual(str(messages[0]), "Aucun média sélectionné.")
-
-    def test_returning_media(self):
-        """Test du retour d'un emprunt"""
-        borrow = Borrow.objects.create(borrower=self.member, content_type=self.livre.content_type,
-                                       object_id=self.livre.id)
-        borrow.returned = True
-        borrow.save()
-
-        self.livre.refresh_from_db()
-        self.assertTrue(self.livre.available)
+@pytest.fixture
+def member(user):
+    if not Member.objects.filter(user=user).exists():
+        return Member.objects.create(user=user, name="Test User", email="test@example.com")
+    return Member.objects.get(user=user)
 
 
-class BorrowingMediaViewTest(TestCase):
-
-    def setUp(self):
-        """Prépare les données pour les tests"""
-        self.user = User.objects.create_user(username="testuser", password="password")
-        self.member = Member.objects.create(user=self.user, blocked=False)
-
-    def login_user(self):
-        """Connexion de l'utilisateur pour les tests"""
-        self.client.login(username="testuser", password="password")
-
-    def test_borrow_media_redirect_for_unauthenticated_user(self):
-        """Test que les utilisateurs non connectés sont redirigés vers la page de connexion"""
-        response = self.client.get(reverse('borrowing_media'))
-        self.assertRedirects(response, '/login/')
+# Fixtures pour les différents types de médias
+@pytest.fixture
+def media():
+    """Fixture pour créer un livre"""
+    return Media.objects.create(name="Livre de test", available=True, media_type="livre")
 
 
-@login_required
-def borrowing_media(request):
-    member = request.user.member
-    borrow_success = False
+@pytest.fixture
+def cd():
+    """Fixture pour créer un CD"""
+    return Media.objects.create(name="Test CD", available=True, media_type="CD")
 
-    if request.method == 'POST':
-        media_id = request.POST.get('media_id')
-        if not media_id:
-            messages.error(request, "Aucun média sélectionné.")
-            return redirect('media_list')
 
-        try:
-            # Récupérer le média sélectionné
-            selected_media = Media.objects.get(id=media_id)
-        except Media.DoesNotExist:
-            raise Http404("Média non trouvé.")
+@pytest.fixture
+def dvd():
+    """Fixture pour créer un DVD"""
+    return Media.objects.create(name="Test DVD", available=True, media_type="DVD")
 
-        # Vérifier les critères d'emprunt
-        valid, message = check_borrow_criteria(member, selected_media)
 
-        if not valid:
-            # Si les critères d'emprunt ne sont pas remplis, retourner une erreur
-            messages.error(request, message)
-            return HttpResponseBadRequest(message)
+@pytest.fixture
+def jeu_plateau():
+    """Fixture pour créer un Jeu Plateau non empruntable"""
+    return Media.objects.create(name="Test Jeu Plateau", available=True, media_type="jeu_plateau", can_borrow=False)
 
-        try:
-            # Créer l'emprunt si toutes les conditions sont respectées
-            borrow = Borrow(
-                borrower=member,
-                content_type=ContentType.objects.get_for_model(selected_media),
-                object_id=selected_media.id
-            )
-            borrow.clean()
-            borrow.confirm_borrow()
-            borrow_success = True
-            messages.success(request, f"L'emprunt de {selected_media.name} a été effectué avec succès.")
-            return redirect('borrows_list')
-        except ValidationError as e:
-            messages.error(request, f"Erreur de validation : {str(e)}")
-            return redirect('borrowing_media')
 
-    available_media = Media.objects.filter(available=True)
-    borrows = Borrow.objects.filter(borrower=member)
+# Fixture pour la règle d'emprunt
+@pytest.fixture
+def borrowing_rule():
+    """Fixture pour créer une règle d'emprunt"""
+    return BorrowingRule.objects.create(active=True, limit=1)
 
-    return render(request, 'personnel/borrowing_media.html', {
-        'available_media': available_media,
-        'borrows': borrows,
-        'member': member,
-        'borrow_success': borrow_success,
-    })
+
+@pytest.mark.django_db
+def test_borrow_livre(client, member, media):
+    """Test emprunt d'un livre"""
+    client.login(username="testuser", password="password")
+
+    response = client.post(reverse('borrowing_media'), {'media_id': media.id})
+
+    # Vérifier que l'emprunt a été créé
+    borrow = Borrow.objects.filter(borrower=member, object_id=media.id).exists()
+    assert borrow
+
+    # Vérifier que le message de succès est affiché
+    messages = list(get_messages(response.wsgi_request))
+    assert str(messages[0]) == f"L'emprunt de {media.name} a été effectué avec succès."
+
+
+
+@pytest.mark.django_db
+def test_borrow_cd(client, member, cd):
+    """Test emprunt d'un CD"""
+    client.login(username="testuser", password="password")
+
+    response = client.post(reverse('borrowing_media'), {'media_id': cd.id})
+
+    # Vérifier que l'emprunt a été créé
+    borrow = Borrow.objects.filter(borrower=member, object_id=cd.id).exists()
+    assert borrow
+
+    # Vérifier que le message de succès est affiché
+    messages = list(get_messages(response.wsgi_request))
+    assert str(messages[0]) == f"L'emprunt de {cd.name} a été effectué avec succès."
+
+
+@pytest.mark.django_db
+def test_borrow_dvd(client, member, dvd):
+    """Test emprunt d'un DVD"""
+    client.login(username="testuser", password="password")
+
+    response = client.post(reverse('borrowing_media'), {'media_id': dvd.id})
+
+    # Vérifier que l'emprunt a été créé
+    borrow = Borrow.objects.filter(borrower=member, object_id=dvd.id).exists()
+    assert borrow
+
+    # Vérifier que le message de succès est affiché
+    messages = list(get_messages(response.wsgi_request))
+    assert str(messages[0]) == f"L'emprunt de {dvd.name} a été effectué avec succès."
+
+
+@pytest.mark.django_db
+def test_borrow_jeu_plateau_not_borrowable(client, member, jeu_plateau):
+    """Test que le Jeu Plateau est visible mais non empruntable"""
+    client.login(username="testuser", password="password")
+
+    # Tenter d'emprunter un jeu de plateau
+    response = client.post(reverse('choose_borrow'), {'media_id': jeu_plateau.id})
+
+    # Vérifier que l'emprunt n'a pas été créé
+    borrow = Borrow.objects.filter(borrower=member, object_id=jeu_plateau.id).exists()
+    assert not borrow
+
+    # Vérifier que le message indiquant que le jeu ne peut pas être emprunté est affiché
+    messages = list(get_messages(response.wsgi_request))
+    assert str(messages[0]) == GAME_NOT_BORROWABLE
+
+
+@pytest.mark.django_db
+def test_borrow_media_when_not_logged_in(client):
+    """Test que l'utilisateur non connecté ne peut pas emprunter de média"""
+    response = client.get(reverse('borrowing_media'))
+    assert response.status_code == 302  # Redirigé vers la page de connexion
+
+
+@pytest.mark.django_db
+def test_borrow_media_when_blocked(client, member, media):
+    """Test emprunt lorsque le membre est bloqué"""
+    member.blocked = True
+    member.save()
+
+    client.login(username="testuser", password="password")
+
+    response = client.post(reverse('borrowing_media'), {'media_id': media.id})
+
+    # Vérifier que le message d'erreur est affiché
+    messages = list(get_messages(response.wsgi_request))
+    assert str(messages[0]) == BORROW_BLOCKED
+
+    # Vérifier qu'aucun emprunt n'est créé
+    borrow = Borrow.objects.filter(borrower=member, object_id=media.id).exists()
+    assert not borrow
+
+
+@pytest.mark.django_db
+def test_borrow_media_not_available(client, member, media):
+    """Test emprunt d'un média non disponible"""
+    media.available = False
+    media.save()
+
+    client.login(username="testuser", password="password")
+    response = client.post(reverse('borrowing_media'), {'media_id': media.id})
+
+    # Vérifier que l'emprunt n'a pas été créé
+    borrow = Borrow.objects.filter(borrower=member, object_id=media.id).exists()
+    assert not borrow
+
+    # Vérifier que le message d'erreur est affiché
+    messages = list(get_messages(response.wsgi_request))
+    assert str(messages[0]) == MEDIA_NOT_AVAILABLE
+
+
+@pytest.mark.django_db
+def test_cache_invalidation_on_borrow(client, member, media):
+    """Vérifier que le cache est invalidé lors de l'emprunt"""
+    with patch('django.core.cache.cache.delete') as mock_cache_delete:
+        client.login(username="testuser", password="password")
+
+        # Emprunter un média
+        client.post(reverse('borrowing_media'), {'media_id': media.id})
+
+        # Vérifier que cache.delete est appelé
+        mock_cache_delete.assert_called_once_with(f"member_{member.id}_borrow_count")
+
+
+@pytest.mark.django_db
+def test_borrow_media_when_limit_reached(client, member, media, dvd, borrowing_rule):
+    """Test emprunt lorsque la limite d'emprunts est atteinte"""
+    # Créer un emprunt pour respecter la limite
+    Borrow.objects.create(borrower=member, content_type=media.content_type, object_id=media.id)
+
+    client.login(username="testuser", password="password")
+    response = client.post(reverse('borrowing_media'), {'media_id': dvd.id})
+
+    # Vérifier que le message d'erreur est affiché
+    messages = list(get_messages(response.wsgi_request))
+    assert str(messages[0]) == BORROW_TOO_MANY
+
+    # Vérifier qu'aucun emprunt n'est créé pour le DVD
+    borrow = Borrow.objects.filter(borrower=member, object_id=dvd.id).exists()
+    assert not borrow
+
+@pytest.mark.django_db
+def test_borrow_multiple_media(client, member, media, cd):
+    """Test emprunt de plusieurs médias"""
+    client.login(username="testuser", password="password")
+
+    # Emprunter le premier média
+    response = client.post(reverse('borrowing_media'), {'media_id': media.id})
+    borrow_media = Borrow.objects.filter(borrower=member, object_id=media.id).exists()
+    assert borrow_media
+
+    # Emprunter un second média
+    response = client.post(reverse('borrowing_media'), {'media_id': cd.id})
+    borrow_cd = Borrow.objects.filter(borrower=member, object_id=cd.id).exists()
+    assert borrow_cd
+
+    # Vérifier les messages de succès
+    messages = list(get_messages(response.wsgi_request))
+    assert str(messages[0]) == f"L'emprunt de {media.name} a été effectué avec succès."
+    assert str(messages[1]) == f"L'emprunt de {cd.name} a été effectué avec succès."
+
+@pytest.mark.django_db
+def test_borrow_media_when_rule_inactive(client, member, media, borrowing_rule):
+    """Test emprunt lorsque la règle d'emprunt est inactive"""
+    borrowing_rule.active = False
+    borrowing_rule.save()
+
+    client.login(username="testuser", password="password")
+    response = client.post(reverse('borrowing_media'), {'media_id': media.id})
+
+    # Vérifier que l'emprunt a été créé malgré la règle inactive
+    borrow = Borrow.objects.filter(borrower=member, object_id=media.id).exists()
+    assert borrow
+
+    # Vérifier que le message de succès est affiché
+    messages = list(get_messages(response.wsgi_request))
+    assert str(messages[0]) == f"L'emprunt de {media.name} a été effectué avec succès."
+
+@pytest.mark.django_db
+def test_borrow_media_when_member_inactive(client, member, media):
+    """Test emprunt lorsqu'un membre est inactif"""
+    member.is_active = False
+    member.save()
+
+    client.login(username="testuser", password="password")
+    response = client.post(reverse('borrowing_media'), {'media_id': media.id})
+
+    # Vérifier que l'emprunt n'a pas été créé
+    borrow = Borrow.objects.filter(borrower=member, object_id=media.id).exists()
+    assert not borrow
+
+    # Vérifier que le message d'erreur est affiché
+    messages = list(get_messages(response.wsgi_request))
+    assert str(messages[0]) == "Vous ne pouvez pas emprunter un média car votre compte est inactif."

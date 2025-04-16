@@ -1,64 +1,58 @@
-from django.contrib.messages.context_processors import messages
-from django.http import JsonResponse
-from django.core.exceptions import ValidationError
-from personnel.models import BorrowingRule, Borrow
-from personnel.messages import BORROW_BLOCKED ,BORROW_TOO_MANY ,MEDIA_NOT_AVAILABLE ,MEMBER_HAS_DELAY ,BORROW_MESSAGE ,BORROW_SUCCESS
-from django.db import transaction
-import logging
+# personnel/services/borrow_service.py
 
+from django.utils import timezone
+from personnel.models import Borrow
+from personnel.services.borrowing_rules_service import get_member_borrowing_rule
+from personnel.exceptions import (
+    BorrowingError,
+    MediaNotAvailable,
+    MaxBorrowLimitReached,
+    MediaAlreadyBorrowed,
+    InvalidReturnOperation,
+)
 
-logger = logging.getLogger(__name__)
+def borrow_media(member, media):
+    """
+    Gère le processus d'emprunt d'un média par un membre, avec les règles de prêt.
+    """
 
-
-# Fonction pour effectuer l'emprunt
-def validate_borrowing(member, media):
-    borrowing_rule = get_active_borrowing_rules().first()
-    if borrowing_rule is None:
-        return False, BORROW_MESSAGE
-
-    # Exemple d'ajout de règles spécifiques par type de média
-    if media.__class__ == Livre:
-        if borrowing_rule.max_livres < member.get_borrowed_media().filter(media_type='livre').count():
-            return False, BORROW_TOO_MANY
-
-    if media.__class__ == DVD:
-        if borrowing_rule.max_dvds < member.get_borrowed_media().filter(media_type='dvd').count():
-            return False, BORROW_TOO_MANY
-
-    if media.__class__ == CD:
-        if borrowing_rule.max_cds < member.get_borrowed_media().filter(media_type='cd').count():
-            return False, BORROW_TOO_MANY
-
-    # Validation générale de l'emprunt (tous types de média confondus)
-    if member.get_borrowed_media().count() >= borrowing_rule.max_items:
-        return False, BORROW_TOO_MANY
-
+    # 1. Le média doit être disponible
     if not media.available:
-        return False, MEDIA_NOT_AVAILABLE
+        raise MediaNotAvailable("Ce média n'est pas disponible.")
 
-    return True, BORROW_SUCCESS
+    # 2. Aucun emprunt en retard
+    if member.has_overdue_borrows():
+        raise BorrowingError("Vous avez des emprunts en retard.")
+
+    # 3. Règle d'emprunt (max)
+    rule = get_member_borrowing_rule(member)
+    if member.borrowed_count() >= rule.max_borrows:
+        raise MaxBorrowLimitReached("Vous avez atteint le nombre maximal d'emprunts autorisé.")
+
+    # 4. Vérifier si déjà emprunté
+    if Borrow.objects.filter(borrower=member, media=media, return_date__isnull=True).exists():
+        raise MediaAlreadyBorrowed("Vous avez déjà emprunté ce média.")
+
+    # 5. Création et sauvegarde
+    borrow = Borrow(borrower=member, media=media, borrow_date=timezone.now())
+    borrow.clean()  # Valide l’objet (optionnel si ton modèle le gère bien)
+    borrow.confirm_borrow()  # Change l'état du média
+    borrow.save()
+    return borrow
 
 
-# Fonction pour retourner un emprunt
-def return_media(borrow_id, member):
+def return_media(member, media):
+    """
+    Permet à un membre de retourner un média emprunté.
+    """
     try:
-        borrow = Borrow.objects.get(id=borrow_id, borrower=member)
+        borrow = Borrow.objects.get(borrower=member, media=media, return_date__isnull=True)
     except Borrow.DoesNotExist:
-        return JsonResponse({'error': 'Emprunt non trouvé ou non associé à ce membre.'}, status=404)
+        raise InvalidReturnOperation("Vous n'avez pas emprunté ce média ou il est déjà retourné.")
 
-    if borrow.is_overdue():
-        return JsonResponse({'error': 'Média en retard, vous devez le retourner avant de pouvoir le remettre.'}, status=400)
+    borrow.return_date = timezone.now()
+    borrow.save()
 
-    try:
-        borrow.mark_as_returned()
-        borrow.media.available = True
-        borrow.media.save()
-        return JsonResponse({'message': 'Média retourné avec succès.'})
-    except ValidationError as e:
-        return JsonResponse({'error': str(e)}, status=400)
-
-
-# Fonction pour afficher les emprunts en retard du membre
-def get_borrows_to_return(member):
-    borrows = Borrow.objects.filter(date_effective_return__isnull=True, borrower=member)
-    return borrows
+    media.available = True
+    media.save()
+    return borrow
