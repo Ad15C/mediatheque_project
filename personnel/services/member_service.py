@@ -3,9 +3,14 @@ from django.core.exceptions import ValidationError
 from personnel.models import Member
 
 
+class MemberAlreadyExistsError(Exception):
+    """Exception levée lorsqu'un membre avec le même email existe déjà."""
+    pass
+
+
 def add_member(form):
     if not form.is_valid():
-        raise ValueError("Le formulaire n'est pas valide.")
+        raise ValidationError("Le formulaire n'est pas valide.")
 
     cleaned_data = form.cleaned_data
     print("Cleaned data:", cleaned_data)
@@ -19,7 +24,7 @@ def add_member(form):
     blocked = cleaned_data['blocked']
 
     if Member.objects.filter(email=email).exists():
-        raise ValueError("Un membre avec cet email existe déjà.")
+        raise MemberAlreadyExistsError("Un membre avec cet email existe déjà.")
 
     # Hash le mot de passe
     hashed_password = make_password(password)
@@ -38,6 +43,10 @@ def add_member(form):
 
 
 def update_member(member, updated_data):
+    # Exemple de validation simple
+    if 'email' in updated_data and Member.objects.filter(email=updated_data['email']).exclude(id=member.id).exists():
+        raise ValidationError("Un membre avec cet email existe déjà.")
+
     for attr, value in updated_data.items():
         setattr(member, attr, value)
     member.save()

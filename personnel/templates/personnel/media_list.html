@@ -5,65 +5,67 @@
 {% block content %}
     <h2>Liste des médias de la médiathèque : </h2>
 
-        <!-- LIVRES -->
-        <h3>Livres : </h3>
-          {% if livres %}
-            <ul>
-              {% for livre in livres %}
-                <li>
-                  <a href="{% url 'media_detail' livre.pk %}">{{ livre.name }}</a>
-                  — Auteur : {{ livre.author }}
-                  {% if not livre.available %} <em>(indisponible)</em>{% endif %}
-                </li>
-              {% endfor %}
-            </ul>
-          {% else %}
-            <p>Aucun livre disponible.</p>
-          {% endif %}
+        <p><a href="{% url 'add_media' %}">➕ Ajouter un média</a></p>
 
-        <!-- DVDS -->
-        <h3>DVDs : </h3>
-          {% if dvds %}
-            <ul>
-              {% for dvd in dvds %}
-                <li>
-                  <a href="{% url 'media_detail' dvd.pk %}">{{ dvd.name }}</a>
-                  — Producteur : {{ dvd.producer }}
-                  {% if not dvd.available %} <em>(indisponible)</em>{% endif %}
-                </li>
-              {% endfor %}
-            </ul>
-          {% else %}
-            <p>Aucun DVD disponible.</p>
-          {% endif %}
+          <!-- LIVRES -->
+          <h3>Livres : </h3>
+            {% if livres %}
+              <ul>
+                {% for livre in livres %}
+                  <li>
+                    <a href="{% url 'media_detail' livre.pk %}">{{ livre.name }}</a>
+                    — Auteur : {{ livre.author }}
+                    {% if not livre.available %} <em>(indisponible)</em>{% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p>Aucun livre disponible.</p>
+            {% endif %}
 
-        <!-- CDS -->
-        <h3>CDs : </h3>
-          {% if cds %}
-            <ul>
-              {% for cd in cds %}
-                <li>
-                  <a href="{% url 'media_detail' cd.pk %}">{{ cd.name }}</a>
-                  — Artiste : {{ cd.artist }}
-                  {% if not cd.available %} <em>(indisponible)</em>{% endif %}
-                </li>
-              {% endfor %}
-            </ul>
-          {% else %}
-            <p>Aucun CD disponible.</p>
-          {% endif %}
+          <!-- DVDS -->
+          <h3>DVDs : </h3>
+            {% if dvds %}
+              <ul>
+                {% for dvd in dvds %}
+                  <li>
+                    <a href="{% url 'media_detail' dvd.pk %}">{{ dvd.name }}</a>
+                    — Producteur : {{ dvd.producer }}
+                    {% if not dvd.available %} <em>(indisponible)</em>{% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p>Aucun DVD disponible.</p>
+            {% endif %}
 
-        <!-- JEUX DE PLATEAU -->
-        <h3>Jeux de Plateau : </h3>
-          {% if jeux_plateau %}
-            <ul>
-              {% for jeu in jeux_plateau %}
-                <li>
-                  {{ jeu.name }} — Créateurs : {{ jeu.creators }}
-                </li>
-              {% endfor %}
-            </ul>
-          {% else %}
-            <p>Aucun jeu de plateau disponible.</p>
-          {% endif %}
+          <!-- CDS -->
+          <h3>CDs : </h3>
+            {% if cds %}
+              <ul>
+                {% for cd in cds %}
+                  <li>
+                    <a href="{% url 'media_detail' cd.pk %}">{{ cd.name }}</a>
+                    — Artiste : {{ cd.artist }}
+                    {% if not cd.available %} <em>(indisponible)</em>{% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p>Aucun CD disponible.</p>
+            {% endif %}
+
+          <!-- JEUX DE PLATEAU -->
+          <h3>Jeux de Plateau : </h3>
+            {% if jeux_plateau %}
+              <ul>
+                {% for jeu in jeux_plateau %}
+                  <li>
+                    {{ jeu.name }} — Créateurs : {{ jeu.creators }}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p>Aucun jeu de plateau disponible.</p>
+            {% endif %}
 {% endblock %}

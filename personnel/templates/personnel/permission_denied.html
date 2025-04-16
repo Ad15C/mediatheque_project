@@ -1,0 +1,9 @@
+{% extends 'personnel/base.html' %}
+
+{% block title %}Accueil{% endblock %}
+
+{% block content %}
+  <h2>Accès refusé</h2>
+    <p>Vous n'avez pas les droits nécessaires pour accéder à cette page.</p>
+    <a href="{% url 'index' %}">Retour à l'accueil</a>
+{% endblock %}
