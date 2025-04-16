@@ -68,5 +68,9 @@
 
     </form>
 
-    {% if borrow_success %}
-        <p style="color: green; font-weight: bold;">L'emprunt a été effectué avec succès pour le
+        {% if borrow_success %}
+        <p style="color: green; font-weight: bold;">
+            L'emprunt a été effectué avec succès pour le média <strong>{{ selected_media.name }}</strong>.
+        </p>
+    {% endif %}
+{% endblock %}

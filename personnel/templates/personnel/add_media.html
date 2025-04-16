@@ -3,7 +3,7 @@
 {% block title %}Ajouter un média{% endblock %}
 
 {% block content %}
-<h2>Ajouter un média : </h2>
+<h2>Ajouter un média :</h2>
 
 <form method="post">
     {% csrf_token %}
@@ -23,10 +23,11 @@
     <div>
         <label for="id_media_type">Catégorie de média :</label>
         <select name="media_type" id="id_media_type" onchange="toggleFields()">
-            <option value="livre" {% if form.media_type.value == 'livre' or 'livre' == request.POST.media_type %}selected{% endif %}>Livre</option>
-            <option value="dvd" {% if form.media_type.value == 'dvd' or 'dvd' == request.POST.media_type %}selected{% endif %}>DVD</option>
-            <option value="cd" {% if form.media_type.value == 'cd' or 'cd' == request.POST.media_type %}selected{% endif %}>CD</option>
-            <option value="jeu_plateau" {% if form.media_type.value == 'jeu_plateau' or 'jeu_plateau' == request.POST.media_type %}selected{% endif %}>Jeu de Plateau</option>
+            <!-- Remarque: correction dans la logique pour afficher la sélection correcte -->
+            <option value="livre" {% if form.media_type.value == 'livre' or request.POST.media_type == 'livre' %}selected{% endif %}>Livre</option>
+            <option value="dvd" {% if form.media_type.value == 'dvd' or request.POST.media_type == 'dvd' %}selected{% endif %}>DVD</option>
+            <option value="cd" {% if form.media_type.value == 'cd' or request.POST.media_type == 'cd' %}selected{% endif %}>CD</option>
+            <option value="jeu_plateau" {% if form.media_type.value == 'jeu_plateau' or request.POST.media_type == 'jeu_plateau' %}selected{% endif %}>Jeu de Plateau</option>
         </select>
     </div>
 
@@ -70,13 +71,13 @@
             {% endif %}
         </div>
 
-        <!-- Champ pour "Créateurs" (Jeu de Plateau) -->
-        <div id="creators-field" class="field" {% if form.media_type.value != 'jeu_plateau' and not request.POST.media_type == 'jeu_plateau' %}style="display:none;"{% endif %}>
-            <label for="id_creators">Créateurs</label>
-            <input type="text" name="creators" id="id_creators" value="{{ form.creators.value }}">
-            {% if form.creators.errors %}
+        <!-- Champ pour "Type de jeu" (Jeu de Plateau) -->
+        <div id="game_type-field" class="field" {% if form.media_type.value != 'jeu_plateau' and not request.POST.media_type == 'jeu_plateau' %}style="display:none;"{% endif %}>
+            <label for="id_game_type">Type de jeu</label>
+            <input type="text" name="game_type" id="id_game_type" value="{{ form.game_type.value }}">
+            {% if form.game_type.errors %}
                 <div class="error">
-                    {% for error in form.creators.errors %}
+                    {% for error in form.game_type.errors %}
                         <p>{{ error }}</p>
                     {% endfor %}
                 </div>
@@ -89,15 +90,58 @@
 </form>
 
 <script>
-    function toggleFields() {
-        const mediaType = document.getElementById("id_media_type").value;
-        document.getElementById("author-field").style.display = mediaType === 'livre' ? 'block' : 'none';
-        document.getElementById("producer-field").style.display = mediaType === 'dvd' ? 'block' : 'none';
-        document.getElementById("artist-field").style.display = mediaType === 'cd' ? 'block' : 'none';
-        document.getElementById("creators-field").style.display = mediaType === 'jeu_plateau' ? 'block' : 'none';
+function toggleFields() {
+    const mediaType = document.getElementById("id_media_type").value;
+    document.getElementById("author-field").style.display = mediaType === 'livre' ? 'block' : 'none';
+    document.getElementById("producer-field").style.display = mediaType === 'dvd' ? 'block' : 'none';
+    document.getElementById("artist-field").style.display = mediaType === 'cd' ? 'block' : 'none';
+    document.getElementById("creators-field").style.display = mediaType === 'jeu_plateau' ? 'block' : 'none';
+    document.getElementById("game_type-field").style.display = mediaType === 'jeu_plateau' ? 'block' : 'none';  // Ajout pour 'game_type'
+}
+
+window.onload = toggleFields;
+document.addEventListener("DOMContentLoaded", function () {
+    const typeSelect = document.querySelector('[name="media_type"]');
+
+    const fieldMap = {
+        livre: ["author"],
+        cd: ["artist"],
+        dvd: ["producer"],
+        jeu_plateau: ["creators", "game_type"]  // Ajout de 'game_type'
+    };
+
+    function updateFields() {
+        // Cacher tous les champs
+        for (let fields of Object.values(fieldMap)) {
+            fields.forEach(field => {
+                const el = document.getElementById("id_" + field);
+                if (el) el.closest("p").style.display = "none";
+            });
+        }
+
+        // Afficher les champs correspondants au type sélectionné
+        const selectedType = typeSelect.value;
+        if (fieldMap[selectedType]) {
+            fieldMap[selectedType].forEach(field => {
+                const el = document.getElementById("id_" + field);
+                if (el) el.closest("p").style.display = "block";
+            });
+        }
     }
 
-    window.onload = toggleFields;
+    typeSelect.addEventListener("change", updateFields);
+    updateFields();
+});
+
+    setTimeout(() => {
+    const selectedType = typeSelect.value;
+    const firstField = fieldMap[selectedType]?.[0];
+    if (firstField) {
+        const input = document.getElementById("id_" + firstField);
+        if (input) input.focus();
+    }
+}, 100);
+
 </script>
 
 {% endblock %}

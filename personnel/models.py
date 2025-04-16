@@ -160,7 +160,7 @@ class JeuPlateau(models.Model):
     creators = models.CharField(max_length=100)
     is_visible = models.BooleanField(default=True)
     available = models.BooleanField(default=False)
-    game_type = models.CharField(max_length=50)
+    game_type = models.CharField(max_length=100, blank=True, null=True)
 
     def __str__(self):
         return self.name

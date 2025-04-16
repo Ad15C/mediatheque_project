@@ -14,7 +14,7 @@
 {% endif %}
 
 
-      <form method="POST" action="{% url 'ajouter_membre' %}">
+      <form method="POST" action="{% url 'add_member' %}">
             {% csrf_token %}
             {{ form.as_p }}
             <button type="submit">Ajoutez le membre</button>
