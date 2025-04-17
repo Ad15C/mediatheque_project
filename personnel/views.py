@@ -1,381 +1,267 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from .models import Borrow, Member, Media, Livre, DVD, CD, JeuPlateau, BorrowingRule
-from .forms import MediaForm, MemberForm
 from django.contrib import messages
-from django.core.exceptions import PermissionDenied
-from django.contrib.auth.decorators import login_required,user_passes_test
+from django.contrib.auth import views as auth_views
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.views import LoginView
 from django.urls import reverse_lazy
-from django.http import JsonResponse
-from .services.borrow_service import borrow_media, return_media
-from .services.borrowing_rules_service import get_active_borrowing_rules
-from .services.member_service import add_member, update_member as update_member_service
-from personnel.services.member_service import delete_member
 from django.utils import timezone
+from django.core.paginator import Paginator
+from django.views.generic import TemplateView, CreateView, ListView, DetailView, UpdateView, DeleteView
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from personnel.models import Borrow, Member, Media, Livre, DVD, CD, JeuPlateau
+from personnel.forms import MediaForm, MemberForm
+from .services.error_service import handle_error
+from .services.media_service import create_media
+from .services.borrow_service import return_media
+from .services.borrowing_rules_service import get_active_borrowing_rules
+from .services.member_service import (add_member, update_member as update_member_service,
+                                      delete_member)
+from personnel.mixins import StaffRequiredMixin
+from django.db import transaction
 
 
 
-class CustomLoginView(LoginView):
-    template_name = 'registration/login.html'
-    success_url = reverse_lazy('index')
+
+class CustomLoginView(auth_views.LoginView):
+    template_name = 'login.html'
+
+    def get_success_url(self):
+        # Ignore le paramètre 'next' et redirige simplement vers l'index
+        return reverse_lazy('index')
 
 
-# Page d'accueil pour afficher les différentes actions disponibles pour le personnel
+# Page d'accueil
+@login_required
 def index(request):
-    borrows = Borrow.objects.all()
-    members = Member.objects.all()
-    context = {
-        'members': members,
-    }
-    return render(request, 'personnel/index.html', {'borrows': borrows, 'members': members})
+    # Votre logique pour la page d'accueil
+    return render(request, 'personnel/index.html')
 
-
-def handle_form_errors(request, form):
-    """Gestion des erreurs de formulaire."""
-    for field in form:
-        if field.errors:
-            for error in field.errors:
-                messages.error(request, f"Erreur dans le champ '{field.label}': {error}")
-
-
-# Vérifie si l'utilisateur est staff
-def is_staff(user):
-    return user.is_staff
 
 # Page de permission refusée
 def permission_denied_view(request):
-    return render(request, '403.html', status=403)
+    return render(request, 'personnel/permission_denied.html', status=403)
 
-# Ajout d'un média
+def handle_error(request, error_message, redirect_url='member_error'):
+    messages.error(request, error_message)
+    return redirect(redirect_url)
+
+# Ajouter un média
+class MediaCreateView(StaffRequiredMixin, LoginRequiredMixin, CreateView):
+    model = Media
+    form_class = MediaForm
+    template_name = 'personnel/add_media.html'
+    success_url = reverse_lazy('media_list')
+
+    def form_valid(self, form):
+        try:
+            media = create_media(form, form.cleaned_data['media_type'])
+            messages.success(self.request, f"{media.name} a été ajouté avec succès!")
+            return super().form_valid(form)
+        except ValueError as e:
+            messages.error(self.request, str(e))
+            return self.form_invalid(form)
+
+# Liste des médias avec pagination et filtres
 @login_required
-@user_passes_test(is_staff, login_url='no_permission')
-def add_media(request):
-    if not request.user.is_staff:
-        raise PermissionDenied("Vous n'avez pas les droits nécessaires.")
-
-    if request.method == 'POST':
-        form = MediaForm(request.POST)
-
-        if form.is_valid():
-            media_type = form.cleaned_data['media_type']
-            common_fields = {
-                'name': form.cleaned_data['name'],
-                'available': form.cleaned_data['available'],
-            }
-
-            # Définir le mappage des champs spécifiques à chaque type de média
-            media_fields_mapping = {
-                'livre': {'model': Livre, 'specific_field': 'author'},
-                'dvd': {'model': DVD, 'specific_field': 'producer'},
-                'cd': {'model': CD, 'specific_field': 'artist'},
-                'jeu_plateau': {'model': JeuPlateau, 'specific_field': 'creators', 'game_type': True},
-            }
-
-            # Vérifier si le media_type existe dans notre mappage
-            if media_type in media_fields_mapping:
-                media_info = media_fields_mapping[media_type]
-                model_class = media_info['model']
-                specific_field = media_info['specific_field']
-
-                # Gérer les champs spécifiques en fonction du type de média
-                specific_value = form.cleaned_data[specific_field]
-
-                # Cas spécifique pour 'jeu_plateau' avec le champ 'game_type'
-                if media_type == 'jeu_plateau':
-                    # Vérification explicite pour le champ 'creators' qui est requis pour 'jeu_plateau'
-                    if not form.cleaned_data.get('creators'):
-                        form.add_error('creators', 'This field is required.')
-                        return render(request, 'personnel/add_media.html', {'form': form})
-
-                    if 'game_type' in form.cleaned_data:
-                        game_type = form.cleaned_data['game_type']
-                    else:
-                        messages.error(request, "Le champ 'game_type' est manquant.")
-                        return render(request, 'personnel/add_media.html', {'form': form})
-
-                    media_instance = model_class.objects.create(
-                        name=form.cleaned_data['name'],
-                        available=form.cleaned_data['available'],
-                        creators=specific_value,
-                        game_type=game_type
-                    )
-                elif media_type == 'livre':
-                    specific_value = form.cleaned_data[specific_field]
-                    media_instance = model_class.objects.create(
-                        name=form.cleaned_data['name'],
-                        available=form.cleaned_data['available'],
-                        author=specific_value
-                    )
-                elif media_type == 'cd':
-                    specific_value = form.cleaned_data[specific_field]
-                    media_instance = model_class.objects.create(
-                        name=form.cleaned_data['name'],
-                        available=form.cleaned_data['available'],
-                        artist=specific_value
-                    )
-                elif media_type == 'dvd':
-                    specific_value = form.cleaned_data[specific_field]
-                    media_instance = model_class.objects.create(
-                        name=form.cleaned_data['name'],
-                        available=form.cleaned_data['available'],
-                        producer=specific_value
-                    )
-
-                messages.success(request, f"{media_instance.name} a été ajouté avec succès!")
-                return redirect('media_list')
-
-            else:
-                messages.error(request, "Le type de média est invalide.")
-                return redirect('add_media')
-
-        else:
-            # Gérer les erreurs du formulaire
-            handle_form_errors(request, form)
-            return render(request, 'personnel/add_media.html', {'form': form})
-
-    else:
-        # Afficher le formulaire si la requête est de type GET
-        form = MediaForm()
-
-    return render(request, 'personnel/add_media.html', {'form': form})
-
-
-# Liste des médias
-@login_required
-@user_passes_test(is_staff, login_url='no_permission')
+@user_passes_test(lambda u: u.is_staff, login_url='/login/')
 def media_list(request):
-
-    livres = Livre.objects.all().order_by('name')
-    dvds = DVD.objects.all().order_by('name')
-    cds = CD.objects.all().order_by('name')
-    jeux_plateau = JeuPlateau.objects.all().order_by('name')
+    # Récupérer tous les médias de chaque type
+    livres = Media.objects.filter(media_type='Livre')  # Exemple, adaptez selon votre modèle
+    dvds = Media.objects.filter(media_type='DVD')
+    cds = Media.objects.filter(media_type='CD')
+    jeux_plateau = Media.objects.filter(media_type='Jeu de Plateau')
 
     return render(request, 'personnel/media_list.html', {
         'livres': livres,
         'dvds': dvds,
         'cds': cds,
-        'jeux_plateau': jeux_plateau
+        'jeux_plateau': jeux_plateau,
     })
 
-
-# Détails des médias
+# Détails d'un média
 @login_required
-@user_passes_test(is_staff, login_url='no_permission')
+@user_passes_test(lambda u: u.is_staff, login_url='/login/')
 def media_detail(request, pk):
-    if not request.user.is_staff:  # Ceci n'est plus nécessaire
-        raise PermissionDenied("Vous n'avez pas les droits nécessaires.")
-
     media = get_object_or_404(Media, pk=pk)
-    return render(request, 'personnel/media_detail.html', {'media': media})
-
+    borrows = Borrow.objects.filter(media=media).select_related('borrower')
+    return render(request, 'personnel/media_detail.html', {'media': media, 'borrow_history': borrows})
 
 # Emprunter un média
 @login_required
-@user_passes_test(is_staff, login_url='no_permission')
+@user_passes_test(lambda u: u.is_authenticated and u.member.can_borrow(), login_url='/login/')
 def borrowing_media(request):
-    if not request.user.is_staff:  # Ceci n'est plus nécessaire
-        raise PermissionDenied("Vous n'avez pas les droits nécessaires.")
-
     try:
         member = request.user.member
     except Member.DoesNotExist:
-        return redirect('member_error')
+        return handle_error(request, "Le membre n'existe pas.", 'member_error')
 
     if request.method == 'POST':
         media_id = request.POST.get('media_id')
+
         if not media_id:
-            messages.error(request, "Aucun média sélectionné.")
-            return redirect('media_list')
+            return handle_error(request, "Aucun média sélectionné.")
 
         try:
             selected_media = Media.objects.get(id=media_id)
-            valid, error_message = member.check_borrow_criteria(selected_media)
-            if not valid:
-                messages.error(request, error_message)
-                return redirect('media_list')
-
-            # Créer l'emprunt
-            borrow = Borrow.objects.create(
-                borrower=member,
-                media=selected_media,
-                user=request.user,
-            )
-            borrow.confirm_borrow()  # Confirmation de l'emprunt et mise à jour de la disponibilité du média
-
-            messages.success(request, f"L'emprunt de {selected_media.name} a été effectué avec succès!")
-            return redirect('borrowing_success')
-
-        except BorrowingError as e:
-            messages.error(request, str(e))
         except Media.DoesNotExist:
-            messages.error(request, "Média non trouvé.")
-    else:
-        available_media = Media.objects.filter(available=True)
-        borrows = Borrow.objects.filter(borrower=member).select_related('media')
-        return render(request, 'personnel/borrowing_media.html', {
-            'available_media': available_media,
-            'borrows': borrows,
-            'member': member,
-        })
+            return handle_error(request, "Média non trouvé.")
+
+        # Vérification si le média est valide
+        if selected_media is None:
+            return handle_error(request, "Le média sélectionné est introuvable.")
+
+        # Vérification si l'utilisateur a déjà un emprunt actif
+        if Borrow.objects.filter(borrower=member, date_effective_return__isnull=True).exists():
+            return handle_error(request, "Vous avez déjà un emprunt actif.")
+
+        # Vérification des critères d'emprunt
+        valid, error_message = member.check_borrow_criteria(selected_media)
+        if not valid:
+            return handle_error(request, error_message)
+
+        # Création de l'emprunt
+        with transaction.atomic():
+            borrow = Borrow.objects.create(borrower=member, media=selected_media, user=request.user)
+            borrow.confirm_borrow()
+
+        messages.success(request, f"L'emprunt de {selected_media.name} a été effectué avec succès!")
+        return redirect('borrowing_success', media_name=selected_media.name)
+
+    # Chargement des médias disponibles
+    available_media = Media.objects.filter(available=True)
+    borrows = Borrow.objects.filter(borrower=member).select_related('media')
+
+    return render(request, 'personnel/borrowing_media.html', {
+        'available_media': available_media,
+        'borrows': borrows,
+        'member': member
+    })
 
 
-
-# Règles d'emprunt d'un média
 @login_required
-@user_passes_test(is_staff, login_url='no_permission')
-def view_borrowing_rules(request):
-    if not request.user.is_staff:  # Ceci n'est plus nécessaire
-        raise PermissionDenied("Vous n'avez pas les droits nécessaires.")
+def borrowing_success(request, media_name):
+    return render(request, 'personnel/borrowing_success.html', {'media_name': media_name})
 
+
+# Règles d'emprunt
+@login_required
+@user_passes_test(lambda u: u.is_staff, login_url='no_permission')
+def view_borrowing_rules(request):
     rules = get_active_borrowing_rules()
     return render(request, 'personnel/borrowing_rules.html', {'rules': rules})
 
-
 # Retourner un emprunt
 @login_required
-@user_passes_test(is_staff, login_url='no_permission')
+@user_passes_test(lambda u: u.is_staff, login_url='no_permission')
 def returning_media_view(request, borrow_id):
-    if not request.user.is_staff:  # Ceci n'est plus nécessaire
-        raise PermissionDenied("Vous n'avez pas les droits nécessaires.")
-
     try:
         member = request.user.member
     except Member.DoesNotExist:
-        return redirect('member_error')
-    return return_media(borrow_id, member)
-
-
-# Pour choisir quel emprunt retourner
-@login_required
-@user_passes_test(is_staff, login_url='no_permission')
-def choose_borrow_to_return_view(request):
-    if not request.user.is_staff:  # Ceci n'est plus nécessaire
-        raise PermissionDenied("Vous n'avez pas les droits nécessaires.")
+        return handle_error(request, "Le membre n'existe pas.", 'member_error')
 
     try:
-        member = request.user.member  # On suppose qu'un utilisateur a un attribut `member`
+        return return_media(borrow_id, member)
+    except Borrow.DoesNotExist:
+        return handle_error(request, "Emprunt non trouvé.")
+    except Exception as e:
+        return handle_error(request, f"Une erreur s’est produite : {str(e)}")
+
+# Choisir un emprunt à retourner
+@login_required
+@user_passes_test(lambda u: u.is_staff, login_url='no_permission')
+def choose_borrow_to_return_view(request):
+    try:
+        member = request.user.member
     except Member.DoesNotExist:
-        return redirect('member_error')
+        return handle_error(request, "Le membre n'existe pas.", 'member_error')
 
-    # Appel à la fonction de filtrage avec l'objet `member`
-    borrows = get_borrows_to_return(member)
-
+    borrows = Borrow.objects.filter(borrower=member, date_effective_return__isnull=True)
     return render(request, 'personnel/returning_media.html', {'borrows': borrows})
 
+# Ajouter un membre
+class MemberCreateView(StaffRequiredMixin, LoginRequiredMixin, CreateView):
+    model = Member
+    form_class = MemberForm
+    template_name = 'personnel/add_member.html'
 
-# Filtre les emprunts d'un membre pour retourner ceux qui n'ont pas été retournés
-@login_required
-@user_passes_test(is_staff, login_url='no_permission')
-def get_borrows_to_return(member):
-    # Ici, tu n'as plus besoin de `request.user.is_staff`, car tu n'as pas accès à `request`
-    return Borrow.objects.filter(borrower=member, date_effective_return__isnull=True)
+    def form_valid(self, form):
+        try:
+            member = add_member(form)
+            messages.success(self.request, "Membre ajouté avec succès!")
+            return redirect('member_detail', pk=member.pk)
+        except Exception as e:
+            messages.error(self.request, f"Erreur : {e}")
+            return self.form_invalid(form)
 
+# Liste des membres
+class MemberListView(ListView):
+    model = Member
+    template_name = 'personnel/member_list.html'
+    context_object_name = 'members'
 
-# Ajout d'un membre
-@login_required
-@user_passes_test(is_staff, login_url='no_permission')
-def add_member_view(request):
-    if not request.user.is_staff:  # Ceci n'est plus nécessaire
-        raise PermissionDenied("Vous n'avez pas les droits nécessaires.")
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # Optionnel : ajouter des filtres ou une pagination personnalisée ici
+        return queryset
 
-    if request.method == 'POST':
-        form = MemberForm(request.POST)
-        if form.is_valid():
-            try:
-                member = add_member(form)
-                messages.success(request, "Membre ajouté avec succès!")
-                return redirect('member_detail', pk=member.pk)
-            except MemberAlreadyExistsError as e:
-                messages.error(request, f"Erreur : {e}")
-            except ValueError as e:
-                messages.error(request, f"Erreur : {e}")
-            except Exception as e:
-                messages.error(request, f"Erreur inconnue : {str(e)}")
-        else:
-            handle_form_errors(request, form)
-    else:
-        form = MemberForm()
+# Détails d'un membre
+class MemberDetailView(StaffRequiredMixin, LoginRequiredMixin, DetailView):
+    model = Member
+    template_name = 'personnel/member_detail.html'
+    context_object_name = 'member'
 
-    return render(request, 'personnel/add_member.html', {'form': form})
+# Mettre à jour un membre
+class MemberUpdateView(StaffRequiredMixin, LoginRequiredMixin, UpdateView):
+    model = Member
+    form_class = MemberForm
+    template_name = 'personnel/update_member.html'
+    context_object_name = 'member'
 
-
-# Afficher la liste des membres
-@login_required
-@user_passes_test(is_staff, login_url='no_permission')
-def member_list_view(request):
-    if not request.user.is_staff:  # Ceci n'est plus nécessaire
-        raise PermissionDenied("Vous n'avez pas les droits nécessaires.")
-
-    members = Member.objects.all()
-    return render(request, 'personnel/member_list.html', {'members': members})
-
-
-# Afficher les détails d'un membre (vue de lecture seule)
-@login_required
-@user_passes_test(is_staff, login_url='no_permission')
-def member_detail_view(request, pk):
-    if not request.user.is_staff:  # Ceci n'est plus nécessaire
-        raise PermissionDenied("Vous n'avez pas les droits nécessaires.")
-
-    member = get_object_or_404(Member, pk=pk)
-    return render(request, 'personnel/member_detail.html', {'member': member})
-
-
-# Mettre à jour un membre via une vue dédiée
-@login_required
-@user_passes_test(is_staff, login_url='no_permission')
-def update_member_view(request, pk):
-    if not request.user.is_staff:  # Ceci n'est plus nécessaire
-        raise PermissionDenied("Vous n'avez pas les droits nécessaires.")
-
-    member = get_object_or_404(Member, pk=pk)
-    if request.method == 'POST':
-        form = MemberForm(request.POST, instance=member)
-        if form.is_valid():
-            try:
-                update_member_service(member, form.cleaned_data)
-                messages.success(request, "Le membre a été mis à jour avec succès!")
-                return redirect('member_detail', pk=member.pk)
-            except Exception as e:
-                messages.error(request, f"Une erreur est survenue : {str(e)}")
-        else:
-            messages.error(request, "Le formulaire n'est pas valide.")
-    else:
-        form = MemberForm(instance=member)
-
-    return render(request, 'personnel/update_member.html', {'form': form, 'member': member})
-
+    def form_valid(self, form):
+        try:
+            updated_member = update_member_service(self.object, form.cleaned_data)
+            messages.success(self.request, "Le membre a été mis à jour avec succès!")
+            return redirect('member_detail', pk=self.object.pk)
+        except Exception as e:
+            messages.error(self.request, f"Une erreur est survenue : {str(e)}")
+            return self.form_invalid(form)
 
 # Suppression d'un membre
+class MemberDeleteView(StaffRequiredMixin, LoginRequiredMixin, DeleteView):
+    model = Member
+    template_name = 'personnel/confirm_delete_member.html'
+    success_url = reverse_lazy('member_list')
+
+    def delete(self, request, *args, **kwargs):
+        member = self.get_object()
+        try:
+            delete_member(member.pk)
+            messages.success(request, "Membre supprimé avec succès.")
+        except Member.DoesNotExist:
+            messages.error(request, "Le membre n'existe pas.")
+        except Exception as e:
+            messages.error(request, f"Une erreur est survenue : {str(e)}")
+        return redirect(self.success_url)
+
+# Membres en retard avec pagination
 @login_required
-@user_passes_test(is_staff, login_url='no_permission')
-def delete_member_view(request, pk):
-    if not request.user.is_staff:
-        raise PermissionDenied("Vous n'avez pas les droits nécessaires pour supprimer un membre.")
-
-    try:
-        member = Member.objects.get(pk=pk)
-        member.delete()
-        messages.success(request, "Membre supprimé avec succès.")
-    except Member.DoesNotExist:
-        messages.error(request, "Le membre n'existe pas.")
-    except Exception as e:
-        messages.error(request, f"Une erreur est survenue : {str(e)}")
-
-    return redirect('member_list')  # Rediriger vers la liste des membres
-
-
-@login_required
-@user_passes_test(is_staff, login_url='no_permission')
+@user_passes_test(lambda u: u.is_staff, login_url='no_permission')
 def members_overdue(request):
     overdue_members = Member.objects.filter(
-        borrow__date_due__lt=timezone.now(),   # <-- champ correct
+        borrow__date_due__lt=timezone.now(),
         borrow__date_effective_return__isnull=True
     ).distinct()
 
-    return render(request, 'personnel/members_overdue.html', {'overdue_members': overdue_members})
+    paginator = Paginator(overdue_members, 10)  # 10 membres par page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
 
+    return render(request, 'personnel/members_overdue.html', {
+        'page_obj': page_obj,
+        'now': timezone.now()
+    })
 
-def member_error():
+# Vue erreur membre
+def member_error(request):
     return render(request, 'personnel/member_error.html')
-

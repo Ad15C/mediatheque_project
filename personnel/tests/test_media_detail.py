@@ -1,102 +1,152 @@
 import pytest
 from django.urls import reverse
-from personnel.models import Livre, DVD, CD, JeuPlateau
 from django.contrib.auth.models import User
+from personnel.models import Livre, DVD, CD, JeuPlateau, Borrow, Member
+import uuid
+from urllib.parse import urlparse
+from personnel.views import MediaCreateView, MemberCreateView
+
+# FIXTURES
+
+@pytest.fixture
+def non_staff_user(db):
+    """Créer un utilisateur non-staff générique."""
+    return User.objects.create_user(username='testuser', password='testpassword')
 
 
 @pytest.fixture
-def create_user(db):
-    """Fixture pour créer un utilisateur de test."""
-    return User.objects.create_user(username='testuser', password='password')
+def test_staff_user(db):
+    """Créer un utilisateur staff."""
+    return User.objects.create_user(username='staffuser', password='staffpassword', is_staff=True)
+
+@pytest.fixture
+def logged_in_client(client, non_staff_user):
+    client.login(username='testuser', password='testpassword')
+    return client
 
 
 @pytest.fixture
-def create_media():
-    """Fixture pour créer des objets de type média."""
-    livre = Livre.objects.create(name="Livre Test", author="Auteur Test", available=True)
-    dvd = DVD.objects.create(name="DVD Test", producer="Producteur Test", available=True)
-    cd = CD.objects.create(name="CD Test", artist="Artiste Test", available=True)
-    jeu_plateau = JeuPlateau.objects.create(
-        name="Jeu Test", creators="Créateur Test", available=False, is_visible=True
-    )
-    return livre, dvd, cd, jeu_plateau
+def logged_in_staff_client(client, test_staff_user):
+    """Connecte un client avec un utilisateur staff."""
+    client.login(username='staffuser', password='staffpassword')
+    return client
+
+@pytest.fixture
+def create_user_and_member(db):
+    """Créer un utilisateur unique et un membre associé."""
+    unique_username = f"user_{uuid.uuid4().hex[:8]}"  # Crée un username unique pour chaque test
+    user = User.objects.create_user(username=unique_username, password='password')
+
+    # Vérifie si un membre existe déjà pour cet utilisateur, sinon crée un nouveau membre
+    member, created = Member.objects.get_or_create(user=user)
+
+    return user, member
+
+@pytest.fixture
+def livre(db):
+    return Livre.objects.create(name='La Femme de Ménage', author='Freida McFadden')
+
+@pytest.fixture
+def dvd(db):
+    return DVD.objects.create(name='Game of Thrones', producer='George R. R. Martin')
+
+@pytest.fixture
+def cd(db):
+    return CD.objects.create(name='25', artist='Adele')
+
+@pytest.fixture
+def jeu_plateau(db):
+    return JeuPlateau.objects.create(name="Monopoly", creators="Charles Darrow")
+
+
+
+@pytest.fixture
+def member_for_staff_user(db, staff_user):
+    return Member.objects.create(user=staff_user)
+
+#  TESTS LISTE -
+@pytest.mark.django_db
+def test_media_list_display(client, staff_user, livre, dvd, cd, jeu_plateau):
+    client.login(username='staffuser', password='staffpassword')
+    url = reverse('media_list')
+    response = client.get(url)
+
+    # Vérifie que la réponse est valide
+    assert response.status_code == 200
+
+    content = response.content.decode()
+
+    # Vérifie la présence des médias dans la réponse
+    assert "La Femme de Ménage" in content
+    assert "Game of Thrones" in content
+    assert "25" in content
+    assert "Monopoly" in content
+    assert "Freida McFadden" in content
+    assert "George R. R. Martin" in content
+    assert "Adele" in content
+    assert "Charles Darrow" in content
+    assert 'Détails' in content
+    assert 'Emprunter' in content
 
 
 @pytest.mark.django_db
-def test_media_detail_livre(client, create_user, create_media):
-    """Test pour le détail d'un livre."""
-    livre, _, _, _ = create_media
-    client.login(username='testuser', password='password')
+def test_media_detail_link(client, staff_user, livre):
+    client.login(username='staffuser', password='staffpassword')
+    url = reverse('media_detail', args=[livre.pk])
+    response = client.get(url)
 
-    response = client.get(reverse('media_detail', kwargs={'pk': livre.pk}))
-
-    # Vérification du statut et du contenu
+    # Vérifie que la réponse est valide
     assert response.status_code == 200
-    assert "Auteur : Auteur Test" in response.content.decode()
-    assert "Disponible : Oui" in response.content.decode()  # "Oui" au lieu de "Disponible"
-
-    # Vérification du lien de retour à la liste des médias
-    back_link = reverse('media_list')
-    assert f'href="{back_link}"' in response.content.decode()
+    assert "La Femme de Ménage" in response.content.decode()
 
 
 @pytest.mark.django_db
-def test_media_detail_dvd(client, create_user, create_media):
-    """Test pour le détail d'un DVD."""
-    _, dvd, _, _ = create_media
-    client.login(username='testuser', password='password')
+def test_no_borrow_button_if_not_available(client, staff_user, livre):
+    livre.available = False
+    livre.save()
+    client.login(username='staffuser', password='staffpassword')
+    url = reverse('media_list')
+    response = client.get(url)
+    assert 'Emprunter' not in response.content.decode()
+    assert 'Non disponible' in response.content.decode()
 
-    response = client.get(reverse('media_detail', kwargs={'pk': dvd.pk}))
 
-    # Vérification du statut et du contenu
-    assert response.status_code == 200
-    assert "Producteur : Producteur Test" in response.content.decode()
-    assert "Disponible : Oui" in response.content.decode()
+
+#  TESTS PERMISSIONS
+
+@pytest.mark.django_db
+def test_media_list_redirect_for_non_authenticated_user(client):
+    """Test que les utilisateurs non-authentifiés sont redirigés vers la page de login lorsqu'ils essaient d'accéder à la liste des médias."""
+    url = reverse('media_list')
+    response = client.get(url)
+    assert response.status_code == 302
+    assert response.url.startswith('/login/')
+
 
 
 @pytest.mark.django_db
-def test_media_detail_cd(client, create_user, create_media):
-    """Test pour le détail d'un CD."""
-    _, _, cd, _ = create_media
-    client.login(username='testuser', password='password')
+def test_media_list_redirect_for_non_staff_user(client, non_staff_user):
+    """Test que les utilisateurs non-staff sont redirigés vers la page de login lorsqu'ils essaient d'accéder à la liste des médias."""
+    client.login(username='testuser', password='testpassword')
+    response = client.get(reverse('media_list'))
+    assert response.status_code == 302
+    assert response.url.startswith('/login/')
 
-    response = client.get(reverse('media_detail', kwargs={'pk': cd.pk}))
-
-    # Vérification du statut et du contenu
-    assert response.status_code == 200
-    assert "Artiste : Artiste Test" in response.content.decode()
-    assert "Disponible : Oui" in response.content.decode()
 
 
 @pytest.mark.django_db
-def test_media_detail_jeu_plateau(client):
-    """Test pour le détail d'un jeu de plateau."""
-    user = User.objects.create_user(username='testuser', password='password')
+def test_media_detail_redirect_for_non_staff_user(client, non_staff_user, livre):
+    client.login(username='testuser', password='testpassword')
+    url = reverse('media_detail', args=[livre.pk])
+    response = client.get(url)
 
-    # Créer un objet JeuPlateau
-    jeu_plateau = JeuPlateau.objects.create(
-        name="Jeu Test",
-        creators="Créateur Test",
-        is_visible=True,  # Le média est visible
-        available=False   # Le jeu n'est pas disponible
-    )
+    assert response.status_code == 302
 
-    # Simuler la connexion de l'utilisateur
-    client.login(username='testuser', password='password')
+    # Compare uniquement le chemin (sans ?next=...)
+    assert urlparse(response.url).path == reverse('no_permission')
 
-    # Effectuer la requête GET pour obtenir la page de détail du jeu de plateau
-    response = client.get(reverse('media_detail', kwargs={'pk': jeu_plateau.pk}))
 
-    # Vérification du statut HTTP
-    assert response.status_code == 200
 
-    # Vérification de l'affichage des informations du jeu de plateau
-    assert "Créateurs : Créateur Test" in response.content.decode()
-    assert "Disponible : Non" in response.content.decode()
-
-    # Vérifier le lien de retour à la liste des médias
-    back_link = reverse('media_list')
-    assert f'href="{back_link}"' in response.content.decode()
 
 
 

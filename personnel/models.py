@@ -56,6 +56,11 @@ class Member(models.Model):
 
         return overdue
 
+    def can_borrow(self):
+        """Vérifie si un membre peut emprunter un média."""
+        valid, _ = self.check_borrow_criteria(None)  # Ne passez pas de média ici, juste la vérification générale
+        return valid
+
     @classmethod
     def get_active_limit(cls):
         rule = BorrowingRule.objects.filter(active=True).first()
@@ -63,6 +68,10 @@ class Member(models.Model):
 
     def check_borrow_criteria(self, selected_media):
         """Vérifie les critères d'emprunt du membre."""
+        # Vérification si le média est valide
+        if not selected_media:
+            return False, "Média introuvable."
+
         # 1. Le membre est-il bloqué ?
         if self.blocked:
             return False, BORROW_BLOCKED

@@ -8,7 +8,7 @@
 <body>
     <nav>
         <h3>Médias</h3>
-            <ul>
+            <ul class="nav-list">
                 <li><a href="{% url 'add_media' %}">Ajouter un média</a></li>
                 <li><a href="{% url 'media_list' %}">Liste des médias</a></li>
                 <li><a href="{% url 'borrowing_media' %}">Emprunter un média</a></li>
@@ -16,7 +16,7 @@
             </ul>
 
         <h3>Membres</h3>
-            <ul>
+            <ul class="nav-list">
                 <li><a href="{% url 'member_list' %}">Liste des membres</a></li>
                 <li><a href="{% url 'add_member' %}">Ajouter un membre</a></li>
                 <li><a href="{% url 'members_overdue' %}">Membres en retard</a></li>
@@ -26,6 +26,9 @@
         <a href="{% url 'index' %}">Accueil</a>
     </nav>
 
+
+
+
     <div>
         {% if user.is_authenticated %}
             <p>Connecté en tant que {{ user.username }}</p>
@@ -34,7 +37,7 @@
                 <button type="submit">Se déconnecter</button>
             </form>
         {% else %}
-            <p><a href="{% url 'login' %}">Se connecter</a></p>
+            <p><a href="{% url 'login' %}" class="btn btn-primary">Se connecter</a></p>
         {% endif %}
     </div>
 
@@ -46,9 +49,17 @@
     </div>
 {% endif %}
 
-    <h1>Bienvenue sur le site de la Médiathèque </h1>
-    {% block content %}
-        <!-- Contenu spécifique de chaque page -->
-    {% endblock %}
+    <h1>Bienvenue sur le site de la Médiathèque</h1>
+
+        <h2>Services disponibles</h2>
+
+            {% block content %}
+                <!-- Contenu spécifique de chaque page -->
+            {% endblock %}
+
+    <footer class="text-center mt-5">
+        <p>© 2025 Médiathèque. Tous droits réservés.</p>
+    </footer>
+
 </body>
 </html>
