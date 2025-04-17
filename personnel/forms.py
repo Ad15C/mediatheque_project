@@ -20,9 +20,8 @@ class MediaForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        media_type = self.data.get('media_type', self.initial.get('media_type', 'livre'))
+        media_type = self.initial.get('media_type', 'livre')  # Utiliser 'initial' plutôt que 'data'
 
-        # Ajuster les champs en fonction du type de média
         if media_type == 'livre':
             self.fields['author'].required = True
         elif media_type == 'dvd':
@@ -59,12 +58,9 @@ class MemberForm(forms.ModelForm):
         model = Member
         fields = ['name', 'email', 'date_of_birth', 'address', 'phone_number', 'blocked']
 
-    # Champ Username pour l'utilisateur associé
     username = forms.CharField(max_length=150, required=True)
     password = forms.CharField(widget=forms.PasswordInput, required=True)
     email = forms.EmailField(max_length=254, required=True)
-
-    # Champ pour la confirmation du mot de passe
     password_confirm = forms.CharField(widget=forms.PasswordInput, required=True)
 
     def clean_email(self):
@@ -84,34 +80,29 @@ class MemberForm(forms.ModelForm):
         password = cleaned_data.get('password')
         password_confirm = cleaned_data.get('password_confirm')
 
-        # Vérification que le mot de passe et la confirmation du mot de passe correspondent
         if password != password_confirm:
             raise ValidationError('Les mots de passe ne correspondent pas.')
 
-        # Vérification de la force du mot de passe (longueur minimale, majuscules, chiffres, etc.)
         if len(password) < 8:
             raise ValidationError('Le mot de passe doit contenir au moins 8 caractères.')
 
-        if not re.search(r'[A-Z]', password):  # Vérifie la présence d'une majuscule
+        if not re.search(r'[A-Z]', password):
             raise ValidationError('Le mot de passe doit contenir au moins une lettre majuscule.')
 
-        if not re.search(r'[0-9]', password):  # Vérifie la présence d'un chiffre
+        if not re.search(r'[0-9]', password):
             raise ValidationError('Le mot de passe doit contenir au moins un chiffre.')
 
         return cleaned_data
 
     def save(self, commit=True):
-        # Créer l'utilisateur associé
         user = User.objects.create_user(
             username=self.cleaned_data['username'],
             password=self.cleaned_data['password']
         )
 
-        # Créer l'objet 'member' sans encore le sauver dans la base de données
         member = super().save(commit=False)
-        member.user = user  # Lier l'utilisateur à ce membre
+        member.user = user
 
-        # Si commit est True, sauvegarder le membre
         if commit:
             member.save()
 

@@ -1,0 +1,9 @@
+{% extends 'personnel/base.html' %}
+
+{% block title %}Emprunt réussi{% endblock %}
+
+{% block content %}
+    <h2>Emprunt réussi!</h2>
+    <p>L'emprunt a été effectué avec succès pour le média <strong>{{ media_name }}</strong>.</p>
+    <a href="{% url 'media_list' %}">Retourner à la liste des médias</a>
+{% endblock %}

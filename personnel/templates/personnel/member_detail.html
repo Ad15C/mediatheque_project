@@ -1,33 +1,52 @@
 {% extends 'personnel/base.html' %}
 
-{% block title %}Détail du média{% endblock %}
+{% block title %}Liste des médias{% endblock %}
 
 {% block content %}
-    {% if media.is_visible %}
-        <h2>{{ media.name }}</h2>
+    <h2>Liste des médias</h2>
 
-        {% if media.author %}
-        <p>Auteur : {{ media.author }}</p>
-        {% endif %}
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Nom du média</th>
+                <th>Type</th>
+                <th>Auteur/Artiste/Producteur/Créateurs</th>
+                <th>Disponible</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for media in media_list %}
+                <tr>
+                    <td>{{ media.name }}</td>
+                    <td>{{ media.get_media_type_display }}</td>
+                    <td>
+                        {% if media.author %}
+                            {{ media.author }}
+                        {% elif media.producer %}
+                            {{ media.producer }}
+                        {% elif media.artist %}
+                            {{ media.artist }}
+                        {% elif media.creators %}
+                            {{ media.creators }}
+                        {% endif %}
+                    </td>
+                    <td>{{ media.available|yesno:"Oui,Non" }}</td>
+                    <td>
+                        <a href="{% url 'media_detail' media.pk %}" class="btn btn-info btn-sm">Détails</a>
+                        {% if media.available %}
+                            <form action="{% url 'borrowing_media' %}" method="post" style="display:inline;">
+                                {% csrf_token %}
+                                <input type="hidden" name="media_id" value="{{ media.id }}">
+                                <button type="submit" class="btn btn-success btn-sm">Emprunter</button>
+                            </form>
+                        {% else %}
+                            <span class="text-muted">Non disponible</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 
-        {% if media.producer %}
-        <p>Producteur : {{ media.producer }}</p>
-        {% endif %}
-
-        {% if media.artist %}
-        <p>Artiste : {{ media.artist }}</p>
-        {% endif %}
-
-        {% if media.creators %}
-            <p>Créateurs : {{ media.creators }}</p>
-        {% endif %}
-
-
-        <p>Disponible : {{ media.available|yesno:"Oui,Non" }}</p>
-
-    {% else %}
-        <p>Ce média n'est pas visible.</p>
-    {% endif %}
-
-    <a href="{% url 'media_list' %}">← Retour à la liste des médias</a>
 {% endblock %}
