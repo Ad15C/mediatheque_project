@@ -5,7 +5,10 @@
 {% block content %}
     <h2>Liste des médias de la médiathèque : </h2>
 
-        <p><a href="{% url 'add_media' %}">➕ Ajouter un média</a></p>
+        {% if user.is_staff %}
+          <a href="{% url 'add_media' %}" class="btn btn-primary">Ajouter un média</a>
+        {% endif %}
+
 
           <!-- LIVRES -->
           <h3>Livres : </h3>

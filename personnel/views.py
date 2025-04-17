@@ -145,10 +145,10 @@ def add_media(request):
 @user_passes_test(is_staff, login_url='no_permission')
 def media_list(request):
 
-    livres = Livre.objects.all().prefetch_related('borrow_set').order_by('name')
-    dvds = DVD.objects.all().prefetch_related('borrow_set').order_by('name')
-    cds = CD.objects.all().prefetch_related('borrow_set').order_by('name')
-    jeux_plateau = JeuPlateau.objects.all().prefetch_related('borrow_set').order_by('name')
+    livres = Livre.objects.all().order_by('name')
+    dvds = DVD.objects.all().order_by('name')
+    cds = CD.objects.all().order_by('name')
+    jeux_plateau = JeuPlateau.objects.all().order_by('name')
 
     return render(request, 'personnel/media_list.html', {
         'livres': livres,
