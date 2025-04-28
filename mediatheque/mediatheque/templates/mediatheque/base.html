@@ -12,9 +12,9 @@
         <ul>
             <li><a href="{% url 'authentification:home' %}">Accueil</a></li>  <!-- Home -->
             {% if user.role == 'staff' %}
-            <li><a href="{% url 'authentification:staff_dashboard' %}">Espace du Personnel</a></li>
+            <li><a href="{% url 'authentification:espace_staff' %}">Espace du Personnel</a></li>
             {% else %}
-            <li><a href="{% url 'authentification:client_dashboard' %}">Espace des Membres</a></li>
+            <li><a href="{% url 'authentification:espace_client' %}">Espace des Membres</a></li>
             {% endif %}
             <li><a href="{% url 'authentification:logout' %}">Déconnexion</a></li>
         </ul>

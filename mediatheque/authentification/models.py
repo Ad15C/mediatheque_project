@@ -3,6 +3,9 @@ from django.db import models
 
 
 class CustomUser(AbstractUser):
+    ADMIN = 'admin'
+    STAFF = 'staff'
+    CLIENT = 'client'
     ROLE_CHOICES = [
         ('admin', 'Admin'),
         ('staff', 'Staff'),
@@ -14,5 +17,3 @@ class CustomUser(AbstractUser):
     def __str__(self):
         return self.username
 
-
-pass

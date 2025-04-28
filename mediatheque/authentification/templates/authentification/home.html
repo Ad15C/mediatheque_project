@@ -5,5 +5,5 @@
 {% block content %}
 <h1>Bienvenue, {{ user.username }}!</h1>
 <p>Vous êtes maintenant connecté(e).</p>
-<a href="{% url 'logout' %}">Se déconnecter</a>
+<a href="{% url 'authentification:logout' %}">Se déconnecter</a>
 {% endblock %}
