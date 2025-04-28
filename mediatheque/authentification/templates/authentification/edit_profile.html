@@ -1,10 +1,26 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-</head>
-<body>
+{% extends 'mediatheque/base.html' %}
 
-</body>
-</html>
+{% block content %}
+  <h1>Modifier le profil de {{ client.username }}</h1>
+
+  <!-- Afficher les messages de succès ou d'erreur -->
+  {% if messages %}
+    <ul>
+      {% for message in messages %}
+        <li>{{ message }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  <!-- Formulaire de modification de profil -->
+  <form method="POST" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    <!-- Affichage du formulaire -->
+    {{ form.as_p }}
+
+    <button type="submit">Mettre à jour</button>
+  </form>
+
+  <a href="{% url 'authentification:home' %}">Retour à l'accueil</a>
+{% endblock %}

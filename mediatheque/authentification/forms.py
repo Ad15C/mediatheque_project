@@ -2,6 +2,8 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import get_user_model
 
+User = get_user_model()
+
 
 class CustomUserCreationForm(UserCreationForm):
     role = forms.ChoiceField(choices=get_user_model().ROLE_CHOICES, required=False, initial='client')
@@ -26,3 +28,13 @@ class CustomUserCreationForm(UserCreationForm):
 class LoginForm(forms.Form):
     username = forms.CharField(label="Nom d'utilisateur", max_length=150)
     password = forms.CharField(label="Mot de passe", widget=forms.PasswordInput)
+
+
+class EditProfileForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ['username', 'email']  # Ajoute d'autres champs si nécessaire
+        widgets = {
+            'email': forms.EmailInput(attrs={'class': 'form-control'}),
+            'username': forms.TextInput(attrs={'class': 'form-control'}),
+        }
