@@ -1,0 +1,21 @@
+{% extends 'mediatheque/base.html' %}
+
+{% block title %}Inscription{% endblock %}
+
+{% block content %}
+<h2>Inscription à la Médiathèque</h2>
+<form method="POST">
+    {% if form.non_field_errors %}
+    <div class="alert alert-danger">
+        {% for error in form.non_field_errors %}
+        <p>{{ error }}</p>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% csrf_token %}
+    {{ form.as_p }}
+
+    <button type="submit">S'inscrire</button>
+</form>
+{% endblock %}

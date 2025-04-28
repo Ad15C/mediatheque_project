@@ -1,0 +1,29 @@
+{% extends 'mediatheque/base.html' %}
+
+{% block title %}Mon Espace {% endblock %}
+
+{% block content %}
+<h2>Bienvenue, {{ user.username }} !</h2>
+
+<p>Voici votre espace personnel :</p>
+
+<ul>
+    <li><strong>Nom complet : </strong>{{ user.first_name }} {{ user.last_name }}</li>
+    <li><strong>Email : </strong>{{ user.email }}</li>
+    <li><strong>Date d'inscription : </strong>{{ user.date_joined|date:"d M Y" }}</li>
+</ul>
+
+<h3>Vos emprunts :</h3>
+{% if emp %}
+<ul>
+    {% for reservation in reservations %}
+    <li>{{ reservation.book.title }} - {{ reservation.reservation_date|date:"d M Y" }}</li>
+    {% endfor %}
+</ul>
+{% else %}
+<p>Aucune réservation en cours.</p>
+{% endif %}
+
+<p><a href="{% url 'edit_profile' %}">Modifier mon profil</a></p>
+
+{% endblock %}

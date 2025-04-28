@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Bienvenue sur le site de la Médiathèque{% endblock %}</title>
+</head>
+<body>
+<header>
+    <nav>
+        {% if user.is_authenticated %}
+        <ul>
+            <li><a href="{% url 'authentification:home' %}">Accueil</a></li>  <!-- Home -->
+            {% if user.role == 'staff' %}
+            <li><a href="{% url 'authentification:staff_dashboard' %}">Espace du Personnel</a></li>
+            {% else %}
+            <li><a href="{% url 'authentification:client_dashboard' %}">Espace des Membres</a></li>
+            {% endif %}
+            <li><a href="{% url 'authentification:logout' %}">Déconnexion</a></li>
+        </ul>
+        {% else %}
+        <ul>
+            <li><a href="{% url 'authentification:home' %}">Accueil</a></li>  <!-- Home -->
+            <li><a href="{% url 'authentification:login' %}">Connexion</a></li>
+            <li><a href="{% url 'authentification:signup' %}">Inscription</a></li>
+        </ul>
+        {% endif %}
+    </nav>
+</header>
+
+<div class="container">
+    {% if messages %}
+    <div class="messages">
+        <ul>
+            {% for message in messages %}
+            <li>{{ message }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% block content %}
+    {% endblock %}
+</div>
+
+<footer>
+    <p>© 2025 Médiathèque. Tous droits réservés.</p>
+</footer>
+</body>
+</html>
