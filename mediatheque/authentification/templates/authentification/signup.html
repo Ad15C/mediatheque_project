@@ -4,18 +4,34 @@
 
 {% block content %}
 <h2>Inscription à la Médiathèque</h2>
+
 <form method="POST">
+    {% csrf_token %}
+
+    <!-- Affichage des erreurs globales du formulaire -->
     {% if form.non_field_errors %}
-    <div class="alert alert-danger">
+    <ul class="errorlist">
         {% for error in form.non_field_errors %}
-        <p>{{ error }}</p>
+        <li>{{ error }}</li>
         {% endfor %}
-    </div>
+    </ul>
     {% endif %}
 
-    {% csrf_token %}
-    {{ form.as_p }}
+    {% for field in form %}
+    <div>
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.errors %}
+        <ul class="errorlist">
+            {% for error in field.errors %}
+            <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </div>
+    {% endfor %}
 
     <button type="submit">S'inscrire</button>
 </form>
+
 {% endblock %}

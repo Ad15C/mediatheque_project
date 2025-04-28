@@ -17,10 +17,17 @@ def signup_view(request):
     if request.method == 'POST':
         form = CustomUserCreationForm(request.POST)
         if form.is_valid():
+            # Formulaire valide
             user = form.save()
             login(request, user)
             messages.success(request, "Inscription réussie ! Vous êtes maintenant connecté.")
-            return redirect('home')  # Redirection après inscription réussie
+            return redirect('authentification:home')
+        else:
+            # Afficher les erreurs pour le débogage
+            print(form.errors)  # Vérifiez dans la console si l'erreur des mots de passe non correspondants est générée
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"Erreur sur {field}: {error}")
     else:
         form = CustomUserCreationForm()
 
@@ -39,9 +46,9 @@ def login_view(request):
                 login(request, user)
                 messages.success(request, "Vous êtes connecté avec succès.")
                 if user.role == 'staff':
-                    return redirect('staff_dashboard')  # Rediriger vers le tableau de bord staff
+                    return redirect('authentification:espace_staff')  # Rediriger vers le tableau de bord staff
                 else:
-                    return redirect('client_dashboard')  # Rediriger vers le tableau de bord client
+                    return redirect('authentification:espace_client')  # Rediriger vers le tableau de bord client
             else:
                 messages.error(request, "Nom d'utilisateur ou mot de passe incorrect.")
         else:
@@ -56,30 +63,35 @@ def login_view(request):
 def logout_view(request):
     logout(request)  # Déconnecte l'utilisateur
     messages.success(request, "Vous êtes maintenant déconnecté.")  # Ajoute un message de succès
-    return redirect('login')
+    return redirect('authentification:login')
+
+
+# Mise à jour du profil
+def edit_profile(request):
+    # Logique de modification du profil
+    return render(request, 'authentification/edit_profile.html')
 
 
 # Décorateur pour vérifier que l'utilisateur est connecté
 @login_required
 def client_dashboard(request):
     if not request.user.groups.filter(name='client').exists():
-        return redirect("home")
+        return redirect('authentification:home')  # Redirige si l'utilisateur n'appartient pas au groupe 'client'
 
     borrows = Borrow.objects.filter(user=request.user, is_returned=False)
     available_media = Media.objects.filter(can_borrow=True, available=True)
 
-    return render(request, "authentification/client_dashboard.html", {
+    return render(request, "authentification/espace_client.html", {
         'borrows': borrows,
         'available_media': available_media
     })
-
 
 
 @login_required
 def staff_dashboard(request):
     # Vérifier si l'utilisateur appartient au groupe staff
     if not request.user.groups.filter(name="staff").exists():
-        return redirect("home")
+        return redirect("authentification:home")
 
     # Récupérer tous les emprunts en cours
     borrows = Borrow.objects.filter(is_returned=False)  # Correction du champ utilisé ici
@@ -90,7 +102,7 @@ def staff_dashboard(request):
     # Récupérer tous les médias (y compris les jeux de plateau)
     all_media = Media.objects.all()
 
-    return render(request, "authentification/staff_dashboard.html", {
+    return render(request, "authentification/espace_staff.html", {
         'borrows': borrows,  # Correction ici, il faut passer les instances d'emprunt
         'overdue_borrows': overdue_borrows,
         'all_media': all_media
