@@ -12,13 +12,12 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('contenttypes', '0002_remove_content_type_name'),
-        ('mediatheque', '0001_initial'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='MediaStaff',
+            name='Media',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('name', models.CharField(max_length=200)),
@@ -26,46 +25,46 @@ class Migration(migrations.Migration):
                 ('media_type', models.CharField(choices=[('book', 'Book'), ('dvd', 'DVD'), ('cd', 'CD'), ('board_game', 'Board Game')], max_length=50)),
                 ('can_borrow', models.BooleanField(default=True)),
                 ('object_id', models.PositiveIntegerField(null=True)),
-                ('content_type', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='staff_media_set', to='contenttypes.contenttype')),
+                ('content_type', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='mediatheque_media_set', to='contenttypes.contenttype')),
             ],
         ),
         migrations.CreateModel(
-            name='BoardGameStaff',
+            name='BoardGame',
             fields=[
-                ('mediastaff_ptr', models.OneToOneField(auto_created=True, on_delete=django.db.models.deletion.CASCADE, parent_link=True, primary_key=True, serialize=False, to='staff.mediastaff')),
+                ('media_ptr', models.OneToOneField(auto_created=True, on_delete=django.db.models.deletion.CASCADE, parent_link=True, primary_key=True, serialize=False, to='mediatheque.media')),
                 ('creators', models.CharField(max_length=100)),
                 ('is_visible', models.BooleanField(default=True)),
                 ('is_available', models.BooleanField(default=True)),
                 ('game_type', models.CharField(blank=True, max_length=100, null=True)),
             ],
-            bases=('staff.mediastaff',),
+            bases=('mediatheque.media',),
         ),
         migrations.CreateModel(
-            name='BookStaff',
+            name='Book',
             fields=[
-                ('mediastaff_ptr', models.OneToOneField(auto_created=True, on_delete=django.db.models.deletion.CASCADE, parent_link=True, primary_key=True, serialize=False, to='staff.mediastaff')),
+                ('media_ptr', models.OneToOneField(auto_created=True, on_delete=django.db.models.deletion.CASCADE, parent_link=True, primary_key=True, serialize=False, to='mediatheque.media')),
                 ('author', models.CharField(max_length=200)),
             ],
-            bases=('staff.mediastaff',),
+            bases=('mediatheque.media',),
         ),
         migrations.CreateModel(
-            name='CDStaff',
+            name='CD',
             fields=[
-                ('mediastaff_ptr', models.OneToOneField(auto_created=True, on_delete=django.db.models.deletion.CASCADE, parent_link=True, primary_key=True, serialize=False, to='staff.mediastaff')),
+                ('media_ptr', models.OneToOneField(auto_created=True, on_delete=django.db.models.deletion.CASCADE, parent_link=True, primary_key=True, serialize=False, to='mediatheque.media')),
                 ('artist', models.CharField(max_length=200)),
             ],
-            bases=('staff.mediastaff',),
+            bases=('mediatheque.media',),
         ),
         migrations.CreateModel(
-            name='DVDStaff',
+            name='DVD',
             fields=[
-                ('mediastaff_ptr', models.OneToOneField(auto_created=True, on_delete=django.db.models.deletion.CASCADE, parent_link=True, primary_key=True, serialize=False, to='staff.mediastaff')),
+                ('media_ptr', models.OneToOneField(auto_created=True, on_delete=django.db.models.deletion.CASCADE, parent_link=True, primary_key=True, serialize=False, to='mediatheque.media')),
                 ('producer', models.CharField(max_length=200)),
             ],
-            bases=('staff.mediastaff',),
+            bases=('mediatheque.media',),
         ),
         migrations.CreateModel(
-            name='StaffBorrow',
+            name='MediathequeBorrow',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('borrow_date', models.DateTimeField(default=django.utils.timezone.now)),
@@ -74,10 +73,10 @@ class Migration(migrations.Migration):
                 ('due_date', models.DateTimeField()),
                 ('is_late', models.BooleanField(default=False)),
                 ('media', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='mediatheque.media')),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='staff_borrow_set', to=settings.AUTH_USER_MODEL)),
+                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='mediatheque_borrow_set', to=settings.AUTH_USER_MODEL)),
             ],
             options={
-                'indexes': [models.Index(fields=['user', 'is_returned'], name='staff_staff_user_id_e6c704_idx')],
+                'indexes': [models.Index(fields=['user', 'is_returned'], name='mediatheque_user_id_f1380b_idx')],
             },
         ),
     ]

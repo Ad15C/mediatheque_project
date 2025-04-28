@@ -1,10 +1,11 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from .forms import CustomUserCreationForm, LoginForm
+from .forms import CustomUserCreationForm, LoginForm, EditProfileForm
 from django.utils import timezone
-from staff.models import Borrow, Media
+from mediatheque.models import MediathequeBorrow, Media
+from django.contrib.auth.models import User
 
 
 @login_required
@@ -67,18 +68,48 @@ def logout_view(request):
 
 
 # Mise à jour du profil
-def edit_profile(request):
-    # Logique de modification du profil
-    return render(request, 'authentification/edit_profile.html')
+@login_required
+def edit_profile(request, user_id):
+    # Vérifier que l'utilisateur connecté est un staff
+    if not request.user.groups.filter(name="staff").exists():
+        messages.error(request, "Vous n'avez pas les permissions nécessaires pour modifier ce profil.")
+        return redirect('authentification:home')
+
+    # Récupérer l'utilisateur à modifier
+    client = get_object_or_404(User, id=user_id)
+
+    # Vérifier si l'utilisateur connecté n'essaie pas de modifier son propre profil
+    if client == request.user:
+        messages.error(request, "Vous ne pouvez pas modifier votre propre profil à partir d'ici.")
+        return redirect('authentification:home')
+
+    # Traiter le formulaire de modification du profil
+    if request.method == 'POST':
+        form = EditProfileForm(request.POST, instance=client)  # Remplir avec les données de l'utilisateur à modifier
+        if form.is_valid():
+            form.save()  # Sauvegarder les modifications
+            messages.success(request, f"Le profil de {client.username} a été mis à jour !")
+            return redirect('authentification:home')  # Rediriger après la modification
+        else:
+            messages.error(request, "Il y a eu une erreur dans la mise à jour du profil.")
+    else:
+        form = EditProfileForm(
+            instance=client)  # Pré-remplir le formulaire avec les données de l'utilisateur à modifier
+
+    return render(request, 'authentification/modifier_profil.html', {'form': form, 'client': client})
 
 
 # Décorateur pour vérifier que l'utilisateur est connecté
+# Vue du tableau de bord client
 @login_required
 def client_dashboard(request):
     if not request.user.groups.filter(name='client').exists():
         return redirect('authentification:home')  # Redirige si l'utilisateur n'appartient pas au groupe 'client'
 
-    borrows = Borrow.objects.filter(user=request.user, is_returned=False)
+    # Récupérer les emprunts en cours pour l'utilisateur
+    borrows = MediathequeBorrow.objects.filter(user=request.user, is_returned=False).select_related('media')
+
+    # Récupérer les médias disponibles à l'emprunt
     available_media = Media.objects.filter(can_borrow=True, available=True)
 
     return render(request, "authentification/espace_client.html", {
@@ -87,23 +118,24 @@ def client_dashboard(request):
     })
 
 
+# Vue du tableau de bord staff
 @login_required
 def staff_dashboard(request):
-    # Vérifier si l'utilisateur appartient au groupe staff
     if not request.user.groups.filter(name="staff").exists():
         return redirect("authentification:home")
 
-    # Récupérer tous les emprunts en cours
-    borrows = Borrow.objects.filter(is_returned=False)  # Correction du champ utilisé ici
+    # Récupérer tous les emprunts en cours (avec les médias associés pour éviter des requêtes supplémentaires)
+    borrows = MediathequeBorrow.objects.filter(is_returned=False).select_related('media')
 
     # Récupérer les emprunts en retard
-    overdue_borrows = Borrow.objects.filter(is_returned=False, due_date__lt=timezone.now())
+    overdue_borrows = MediathequeBorrow.objects.filter(is_returned=False, due_date__lt=timezone.now()).select_related(
+        'media')
 
-    # Récupérer tous les médias (y compris les jeux de plateau)
+    # Récupérer tous les médias (selon ton cas, tu peux envisager des filtres spécifiques pour le staff)
     all_media = Media.objects.all()
 
     return render(request, "authentification/espace_staff.html", {
-        'borrows': borrows,  # Correction ici, il faut passer les instances d'emprunt
+        'borrows': borrows,
         'overdue_borrows': overdue_borrows,
         'all_media': all_media
     })
