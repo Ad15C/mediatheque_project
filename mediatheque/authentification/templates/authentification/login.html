@@ -1,0 +1,28 @@
+{% extends 'mediatheque/base.html' %}
+
+
+{% block title %}Connexion{% endblock %}
+
+{% block content %}
+<h2>Connexion à mon espace</h2>
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Se connecter</button>
+</form>
+
+{% if form.errors %}
+<ul>
+    {% for field in form %}
+    {% for error in field.errors %}
+    <li>{{ error }}</li>
+    {% endfor %}
+    {% endfor %}
+    {% for error in form.non_field_errors %}
+    <li>{{ error }}</li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+<p>Pas encore de compte ? <a href="{% url 'authentification:signup' %}">Inscrivez-vous ici</a></p>
+{% endblock %}

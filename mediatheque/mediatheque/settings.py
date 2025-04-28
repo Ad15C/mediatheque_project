@@ -55,7 +55,7 @@ ROOT_URLCONF = 'mediatheque.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],
+        'DIRS': [BASE_DIR / 'mediatheque' / 'templates',],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -120,3 +120,11 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'authentification.CustomUser'
+
+LOGIN_URL = '/auth/login/'
+
+# Où aller après connexion réussie
+LOGIN_REDIRECT_URL = '/auth/client_dashboard/'
+
+# Où aller après déconnexion
+LOGOUT_REDIRECT_URL = '/auth/login/'

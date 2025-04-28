@@ -1,0 +1,9 @@
+{% extends 'mediatheque/base.html' %}
+
+{% block title %}Page d'accueil{% endblock %}
+
+{% block content %}
+<h1>Bienvenue, {{ user.username }}!</h1>
+<p>Vous êtes maintenant connecté(e).</p>
+<a href="{% url 'logout' %}">Se déconnecter</a>
+{% endblock %}
